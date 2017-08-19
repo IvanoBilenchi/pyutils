@@ -13,6 +13,19 @@ from enum import Enum
 # Public classes
 
 
+class OutputAction(Enum):
+    """Pseudo-enum class for output actions."""
+    PRINT = None
+    DISCARD = None
+    STORE = None
+OutputAction.init()
+
+
+class WatchdogException(Exception):
+    """Raised when a process times out."""
+    pass
+
+
 class Task(object):
     """Spawn processes and easily capture their output."""
 
@@ -59,7 +72,7 @@ class Task(object):
         :param list[str] args : The process args.
         :param OutputAction output_action : Output action.
 
-        :rtype: cls
+        :rtype : Task
         """
         task = cls(executable, args=args, output_action=output_action)
         task.run()
@@ -296,19 +309,6 @@ class Benchmark(object):
 
         # noinspection PyProtectedMember
         self._task._complete(time_task.exit_code, time_task.stdout, stderr[:idx])
-
-
-class OutputAction(Enum):
-    """Pseudo-enum class for output actions."""
-    PRINT = None
-    DISCARD = None
-    STORE = None
-OutputAction.init()
-
-
-class WatchdogException(Exception):
-    """Raised when a process times out."""
-    pass
 
 
 # Public functions
