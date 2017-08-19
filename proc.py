@@ -51,6 +51,20 @@ class Task(object):
         """:rtype : int"""
         return self._exit_code
 
+    @classmethod
+    def spawn(cls, executable, args=None, output_action=OutputAction.STORE):
+        """Convenience factory method: builds, runs and returns a task.
+
+        :param str executable : The process executable.
+        :param list[str] args : The process args.
+        :param OutputAction output_action : Output action.
+
+        :rtype: cls
+        """
+        task = cls(executable, args=args, output_action=output_action)
+        task.run()
+        return task
+
     def __init__(self, executable, args=None, output_action=OutputAction.STORE):
         """
         :param str executable : The process executable.
