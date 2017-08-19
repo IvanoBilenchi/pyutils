@@ -142,6 +142,7 @@ class Task(object):
         :param (Process, Exception) -> None exit_handler : Exit handler.
         """
         bg_proc = threading.Thread(target=self._call_async_body, args=[timeout, exit_handler])
+        bg_proc.daemon = True
         bg_proc.start()
 
     def raise_if_failed(self, ensure_output=False, message=None):
