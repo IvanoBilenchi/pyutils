@@ -1,13 +1,13 @@
 import exc
 
 
-def dict_from_string(string, line_sep='\n', value_sep='='):
+def from_string(string, line_sep='\n', value_sep='='):
     """Parses a string and returns a dictionary with the key/value pairs contained in it.
 
     :param str string : String to parse.
     :param str line_sep : Separator for lines.
     :param str value_sep : Separator for key/value.
-    :rtype : dict of str
+    :rtype : dict[str, str]
     """
     exc.raise_if_falsy(line_sep=line_sep, value_sep=value_sep)
     dictionary = {}
@@ -26,14 +26,14 @@ def dict_from_string(string, line_sep='\n', value_sep='='):
     return dictionary
 
 
-def masked_dict_with_defaults(dictionary, defaults, mask_falsy=False):
+def masked_with_defaults(dictionary, defaults, mask_falsy=False):
     """Masks missing dictionary values with defaults.
 
-    :param dict dictionary : Dictionary to mask.
-    :param dict defaults : Defaults to mask the dictionary with.
+    :param dict[T, U] dictionary : Dictionary to mask.
+    :param dict[T, U] defaults : Defaults to mask the dictionary with.
     :param bool mask_falsy : If True, also masks falsy values.
 
-    :rtype : dict
+    :rtype : dict[T, U]
     :return Masked dictionary.
     """
     exc.raise_if_falsy(defaults=defaults)
@@ -57,8 +57,11 @@ def masked_dict_with_defaults(dictionary, defaults, mask_falsy=False):
 def updated_recursive(dictionary, update_dict):
     """Recursively updates nested dictionaries.
 
-    :param dict dictionary : Dictionary to update.
-    :param dict update_dict : Dictionary containing the updates.
+    :param dict[T, U] dictionary : Dictionary to update.
+    :param dict[T, U] update_dict : Dictionary containing the updates.
+
+    :rtype : dict[T, U]
+    :return Updated dictionary.
     """
     local_dict = dict(dictionary)
 
@@ -75,8 +78,8 @@ def updated_recursive(dictionary, update_dict):
 def is_updated(dictionary, update_dict):
     """Checks if the dictionary has been updated with the values from update_dict.
 
-    :param dict dictionary : Dictionary to check.
-    :param dict update_dict : Dictionary containing the updates.
+    :param dict[T, U] dictionary : Dictionary to check.
+    :param dict[T, U] update_dict : Dictionary containing the updates.
     :rtype : bool
     """
     for key, value in update_dict.iteritems():
