@@ -1,42 +1,36 @@
-import Foundation
 import objc
-from Foundation import NSData, NSPropertyListSerialization
+# noinspection PyUnresolvedReferences
+from Foundation import (
+    NSData,
+    NSDataWritingAtomic,
+    NSError,
+    NSPropertyListBinaryFormat_v1_0,
+    NSPropertyListMutableContainersAndLeaves,
+    NSPropertyListOpenStepFormat,
+    NSPropertyListSerialization,
+    NSPropertyListXMLFormat_v1_0
+)
+from enum import Enum
+from typing import Dict
 
-import exc
+from . import exc
 
 
 # Public classes
 
 
-class Format:
-    """Pseudo-enum class for plist formats. Do not instantiate."""
-    # These declarations could be avoided, but are useful for PyCharm code completion.
-    OPENSTEP = None
-    XML = None
-    BINARY = None
-
-    def __init__(self, name, format_int):
-        self.name = name
-        self.format_int = format_int
-
-    def __repr__(self):
-        return '<PlistFormat: {}>'.format(self.name)
-
-for key, value in {'OPENSTEP': Foundation.NSPropertyListOpenStepFormat,
-                   'XML': Foundation.NSPropertyListXMLFormat_v1_0,
-                   'BINARY': Foundation.NSPropertyListBinaryFormat_v1_0}.iteritems():
-    setattr(Format, key, Format(key, value))
+class Format(Enum):
+    """Plist formats."""
+    OPENSTEP = NSPropertyListOpenStepFormat
+    XML = NSPropertyListXMLFormat_v1_0
+    BINARY = NSPropertyListBinaryFormat_v1_0
 
 
 # Public functions
 
 
-def read(plist_path):
-    """Read a plist file and return its contents as a dictionary.
-
-    :param str plist_path : Path to the plist file to read.
-    :rtype : dict
-    """
+def read(plist_path: str) -> Dict:
+    """Read a plist file and return its contents as a dictionary."""
     exc.raise_if_falsy(plist_path=plist_path)
     data, error = NSData.dataWithContentsOfFile_options_error_(plist_path, 0, objc.nil)
 
@@ -44,7 +38,7 @@ def read(plist_path):
         _raise_ioerror_from_nserror(error, 'Failed to load plist file at path: {}'.format(plist_path))
 
     contents, dummy, error = NSPropertyListSerialization.propertyListWithData_options_format_error_(
-        data, Foundation.NSPropertyListMutableContainersAndLeaves, objc.nil, objc.nil
+        data, NSPropertyListMutableContainersAndLeaves, objc.nil, objc.nil
     )
 
     if not contents:
@@ -53,23 +47,18 @@ def read(plist_path):
     return contents
 
 
-def write(plist_contents, plist_path, plist_format=Format.BINARY):
-    """Write dictionary to a plist file.
-
-    :param dict plist_contents : Contents of the plist file.
-    :param str plist_path : Path of the plist file to write to.
-    :param plist.Format plist_format : Format of the plist file.
-    """
+def write(plist_contents: Dict, plist_path: str, plist_format: Format=Format.BINARY) -> None:
+    """Write dictionary to a plist file."""
     exc.raise_if_falsy(plist_contents=plist_contents, plist_path=plist_path, plist_format=plist_format)
 
     data, error = NSPropertyListSerialization.dataWithPropertyList_format_options_error_(
-        plist_contents, plist_format.format_int, 0, objc.nil
+        plist_contents, plist_format.value, 0, objc.nil
     )
 
     if not data:
         _raise_ioerror_from_nserror(error, 'Failed to serialize plist contents.')
 
-    success, error = data.writeToFile_options_error_(plist_path, Foundation.NSDataWritingAtomic, objc.nil)
+    success, error = data.writeToFile_options_error_(plist_path, NSDataWritingAtomic, objc.nil)
 
     if not success:
         _raise_ioerror_from_nserror(error, 'Failed to write plist to path: {}'.format(plist_path))
@@ -78,11 +67,7 @@ def write(plist_contents, plist_path, plist_format=Format.BINARY):
 # Private functions
 
 
-def _raise_ioerror_from_nserror(error, fallback_msg):
-    """
-    :param Foundation.NSError error : Objective-C error.
-    :param str fallback_msg : Message to show if error is null or has no description.
-    """
+def _raise_ioerror_from_nserror(error: NSError, fallback_msg: str) -> None:
     err_msg = None
     if error:
         err_msg = error.localizedDescription()

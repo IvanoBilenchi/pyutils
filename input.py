@@ -1,52 +1,64 @@
-import echo
+from typing import Any, Callable, Optional
+
+from . import echo
 
 
 # Public functions
 
 
-def get_str(prompt=None, min_len=None, max_len=None, lambda_condition=None, default=None):
+def get_str(prompt: Optional[str]=None,
+            min_len: Optional[int]=None,
+            max_len: Optional[int]=None,
+            condition: Optional[Callable[[str], bool]]=None,
+            default: Optional[str]=None) -> str:
     """Gets a string from the command line. Trims leading and trailing whitespace.
 
-    :param str prompt : The prompt to show to the user.
-    :param int min_len : The minimum length of the string.
-    :param int max_len : The maximum length of the string.
-    :param lambda lambda_condition : Condition against which the input should be tested.
-    :param str default : Default value returned on empty input.
-    :rtype : str
+    :param prompt: Input prompt.
+    :param min_len: Minimum length.
+    :param max_len: Maximum length.
+    :param condition: Condition the string must match.
+    :param default: Default string used if no characters are typed.
+
+    :return: Input string.
     """
     input_str = None
 
     while input_str is None:
-        input_str = raw_input(_prompt_from_message(prompt, default=default)).strip()
+        input_str = input(_prompt_from_message(prompt, default=default)).strip()
 
         if default is not None and len(input_str) == 0:
             input_str = default
 
         if (min_len is not None and len(input_str) < min_len) or \
                 (max_len is not None and len(input_str) > max_len) or \
-                (lambda_condition is not None and not lambda_condition(input_str)):
+                (condition is not None and not condition(input_str)):
             _print_invalid_value(input_str)
             input_str = None
 
     return input_str
 
 
-def get_int(prompt=None, min_value=None, max_value=None, lambda_condition=None, default=None):
+def get_int(prompt: Optional[str]=None,
+            min_value: Optional[int]=None,
+            max_value: Optional[int]=None,
+            condition: Optional[Callable[[int], bool]]=None,
+            default: Optional[int]=None) -> int:
     """Gets an int from the command line.
 
-    :param str prompt : The prompt to show to the user.
-    :param int min_value : The minimum int to accept.
-    :param int max_value : The maximum int to accept.
-    :param lambda lambda_condition : Condition against which the input should be tested.
-    :param int default : Default value returned on empty input.
-    :rtype : int
+    :param prompt: Input prompt.
+    :param min_value: Minimum value of the parsed int.
+    :param max_value: Maximum value of the parsed int.
+    :param condition: Condition the int must match.
+    :param default: Default value used if no characters are typed.
+
+    :return: Input int.
     """
     input_int = None
     input_str = None
 
     while input_int is None:
         try:
-            input_str = raw_input(_prompt_from_message(prompt, default=default)).strip()
+            input_str = input(_prompt_from_message(prompt, default=default)).strip()
 
             if default is not None and len(input_str) == 0:
                 input_str = default
@@ -54,7 +66,7 @@ def get_int(prompt=None, min_value=None, max_value=None, lambda_condition=None, 
             input_int = int(input_str)
             if (min_value is not None and input_int < min_value) or \
                     (max_value is not None and input_int > max_value) or \
-                    (lambda_condition is not None and not lambda_condition(input_int)):
+                    (condition is not None and not condition(input_int)):
                 input_int = None
                 raise ValueError()
         except ValueError:
@@ -66,13 +78,8 @@ def get_int(prompt=None, min_value=None, max_value=None, lambda_condition=None, 
 # Private functions
 
 
-def _prompt_from_message(message=None, default=None):
-    """Returns an input prompt.
-
-    :param str message : Message of the prompt.
-    :param default : Default value.
-    :rtype : str
-    """
+def _prompt_from_message(message: Optional[str]=None, default: Optional[str]=None) -> str:
+    """Returns an input prompt."""
     if not message:
         return ''
 
@@ -86,11 +93,8 @@ def _prompt_from_message(message=None, default=None):
     return ''.join(prompt_parts)
 
 
-def _print_invalid_value(value=None):
-    """Prints the "Invalid value" error message to stderr.
-
-    :param value : The invalid value.
-    """
+def _print_invalid_value(value: Any=None) -> None:
+    """Prints the "Invalid value" error message to stderr."""
     err_msg_components = ['Invalid value']
     if value is not None:
         err_msg_components.append(' "{}"'.format(value))

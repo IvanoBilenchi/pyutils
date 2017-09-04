@@ -1,54 +1,35 @@
-from __future__ import print_function
-
 import sys
-
+from enum import Enum
+from typing import TextIO
 
 # Public classes
 
 
-class Color:
-    """Pseudo-enum class for output color. Do not instantiate."""
-    # These declarations could be avoided, but are useful for PyCharm code completion.
-    GRAY = None
-    RED = None
-    GREEN = None
-    YELLOW = None
-    BLUE = None
-    MAGENTA = None
-    CYAN = None
-    WHITE = None
-    CRIMSON = None
-
-    def __init__(self, name, code):
-        self.name = name
-        self.code = code
-
-    def __repr__(self):
-        return '<Color: {}>'.format(self.name)
-
-for index, color_str in enumerate(['GRAY', 'RED', 'GREEN', 'YELLOW', 'BLUE', 'MAGENTA', 'CYAN', 'WHITE', 'CRIMSON']):
-    setattr(Color, color_str, Color(color_str, str(index + 30)))
+class Color(Enum):
+    """Output color."""
+    GRAY = 30
+    RED = 31
+    GREEN = 32
+    YELLOW = 33
+    BLUE = 34
+    MAGENTA = 35
+    CYAN = 36
+    WHITE = 37
+    CRIMSON = 38
 
 
 # Public functions
 
 
-def pretty(message, color=None, bold=False, endl=True, out_file=sys.stdout):
-    """Print colored message to the specified file.
-
-    :param str message : Message to print.
-    :param echo.Color color : Message color.
-    :param bool bold : Bold text.
-    :param bool endl : Print trailing newline.
-    :param file out_file : File to print 'message' to.
-    """
+def pretty(message: str, color: Color=None, bold: bool=False, endl: bool=True, out_file: TextIO=sys.stdout) -> None:
+    """Print colored message to the specified file."""
     msg = message
 
     if out_file.isatty():
         attrs = []
 
         if color:
-            attrs.append(color.code)
+            attrs.append(str(color.value))
 
         if bold:
             attrs.append('1')
@@ -63,28 +44,16 @@ def pretty(message, color=None, bold=False, endl=True, out_file=sys.stdout):
         out_file.flush()
 
 
-def info(message, endl=True):
-    """Print message to stdout.
-
-    :param str message : Message to print.
-    :param bool endl : Print trailing newline.
-    """
+def info(message: str, endl: bool=True) -> None:
+    """Print message to stdout."""
     pretty(message, endl=endl)
 
 
-def success(message, endl=True):
-    """Print message in green to stdout.
-
-    :param str message : Success message.
-    :param bool endl : Print trailing newline.
-    """
+def success(message: str, endl: bool=True) -> None:
+    """Print message in green to stdout."""
     pretty(message, color=Color.GREEN, endl=endl)
 
 
-def error(message, endl=True):
-    """Print message in red to stderr.
-
-    :param str message: Error message.
-    :param bool endl : Print trailing newline.
-    """
+def error(message: str, endl: bool=True) -> None:
+    """Print message in red to stderr."""
     pretty(message, color=Color.RED, endl=endl, out_file=sys.stderr)

@@ -3,17 +3,11 @@ import mmap
 import os
 import shutil
 
-import exc
+from . import exc
 
 
-def contains(file_path, string):
-    """Checks if a given file contains the specified string.
-
-    :param str file_path : Path to the haystack.
-    :param str string : The needle.
-    :rtype : bool
-    :return : True if the file contains the specified string, false otherwise.
-    """
+def contains(file_path: str, string: str) -> bool:
+    """Checks if a given file contains the specified string."""
     exc.raise_if_falsy(string=string)
 
     with open(file_path) as handle:
@@ -24,11 +18,8 @@ def contains(file_path, string):
     return result
 
 
-def create_dir(path):
-    """Creates an empty directory. Does nothing if it already exists.
-
-    :param str path : Path of the directory to create.
-    """
+def create_dir(path: str) -> None:
+    """Creates an empty directory. Does nothing if it already exists."""
     try:
         os.makedirs(path)
     except OSError as e:
@@ -36,13 +27,8 @@ def create_dir(path):
             raise
 
 
-def human_readable_bytes(n_bytes):
-    """Returns the human readable size for the specified bytes.
-
-    :param long n_bytes : Size in bytes.
-    :rtype : str
-    :return : Human readable size.
-    """
+def human_readable_bytes(n_bytes: int) -> str:
+    """Returns the human readable size for the specified bytes."""
     for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(n_bytes) < 1024.0:
             return '{:3.1f} {}B'.format(n_bytes, unit)
@@ -50,21 +36,13 @@ def human_readable_bytes(n_bytes):
     return '{:.1f} {}B'.format(n_bytes, 'Yi')
 
 
-def human_readable_size(path):
-    """Returns the human readable size for the file at the specified path.
-
-    :param str path : Path of the file.
-    :rtype : str
-    :return : Human readable file size.
-    """
+def human_readable_size(path: str) -> str:
+    """Returns the human readable size for the file at the specified path."""
     return human_readable_bytes(os.path.getsize(path))
 
 
-def remove(path):
-    """Removes the file at the specified path. Does nothing if the file does not exist.
-
-    :param str path : Path of the file to remove.
-    """
+def remove(path: str) -> None:
+    """Removes the file at the specified path. Does nothing if the file does not exist."""
     try:
         os.remove(path)
     except OSError as e:
@@ -72,11 +50,8 @@ def remove(path):
             raise
 
 
-def remove_dir_contents(path):
-    """Recursively deletes the contents of the specified folder.
-
-    :param str path : Path of the directory to empty.
-    """
+def remove_dir_contents(path: str) -> None:
+    """Recursively deletes the contents of the specified folder."""
     for root, dirs, files in os.walk(path):
         for f in files:
             os.unlink(os.path.join(root, f))

@@ -2,64 +2,55 @@ import errno
 import os
 import sys
 
+from enum import Enum, auto
+from typing import Any, Optional
+
+
+class FileType(Enum):
+    """File type."""
+    ANY = auto()
+    FILE = auto()
+    DIR = auto()
+
 
 class ProgramExit(Exception):
     """Raise to express the will to exit from the program."""
     pass
 
 
-def raise_exit(message=None):
-    """Raise a ProgramExit with the specified message.
-
-    :param str message : The message to display to the user.
-    """
+def raise_exit(message: Optional[str]=None) -> None:
+    """Raise a ProgramExit with the specified message."""
     raise ProgramExit(message)
 
 
-def raise_ioerror(err_no, path=None, message=None):
-    """Raise an IOError with an auto-generated message
-    based on err_no.
-
-    :param int err_no : Error code (errno).
-    :param str path : File path.
-    :param str message : Alternative message.
-    """
+def raise_ioerror(err_no: int, path: Optional[str]=None, message: Optional[str]=None) -> None:
+    """Raise an IOError with an auto-generated message based on err_no."""
     if not message:
         message = os.strerror(err_no) + '.'
 
     if path:
         message += ' Path: ' + path
 
-    ioerror = IOError(message)
-    ioerror.errno = err_no
+    e = IOError(message)
+    e.errno = err_no
 
-    raise ioerror
+    raise e
 
 
-def raise_not_found(path=None, message=None):
-    """Raise a 'file not found' exception.
-
-    :param str path : Path of the missing file.
-    :param str message : Alternative message.
-    """
+def raise_not_found(path: Optional[str]=None, message: Optional[str]=None) -> None:
+    """Raise a 'file not found' exception."""
     raise_ioerror(errno.ENOENT, path, message)
 
 
-def raise_if_none(**kwargs):
-    """Raise exception if any of the args is None.
-
-    :param kwargs : Args to check.
-    """
+def raise_if_none(**kwargs: Any) -> None:
+    """Raise exception if any of the args is None."""
     for key in kwargs:
         if kwargs[key] is None:
             raise ValueError('Illegal "None" value for: ' + key)
 
 
-def raise_if_falsy(**kwargs):
-    """Raise exception if any of the args is falsy.
-
-    :param kwargs : Args to check.
-    """
+def raise_if_falsy(**kwargs: Any) -> None:
+    """Raise exception if any of the args is falsy."""
     for key in kwargs:
         value = kwargs[key]
         if not value:
@@ -72,17 +63,13 @@ def raise_if_falsy(**kwargs):
             raise ValueError('Illegal {} value for: {}'.format(adj, key))
 
 
-def raise_if_not_found(path, file_type='any'):
-    """Raise exception if the specified file does not exist.
-
-    :param str path : Path of the file.
-    :param str file_type : File type; can be 'any', 'file' or 'dir'.
-    """
+def raise_if_not_found(path: str, file_type: FileType=FileType.ANY) -> None:
+    """Raise exception if the specified file does not exist."""
     raise_if_falsy(path=path)
 
-    if file_type == 'file':
+    if file_type == FileType.FILE:
         test_func = os.path.isfile
-    elif file_type == 'dir':
+    elif file_type == FileType.DIR:
         test_func = os.path.isdir
     else:
         test_func = os.path.exists
@@ -91,25 +78,19 @@ def raise_if_not_found(path, file_type='any'):
         raise_not_found(path)
 
 
-def raise_if_exists(path):
-    """Raise exception if a file already exists at a given path.
-
-    :param str path : Path of the file.
-    """
+def raise_if_exists(path: str) -> None:
+    """Raise exception if a file already exists at a given path."""
     raise_if_falsy(path=path)
     if os.path.exists(path):
         raise_ioerror(errno.EEXIST, path)
 
 
-def raise_if_not_root():
+def raise_if_not_root() -> None:
     """Raise exception if the effective user is not root."""
     if os.geteuid() != 0:
         raise_ioerror(errno.EPERM, message='This operation requires root privileges.')
 
 
-def re_raise_new_message(exception, message):
-    """Re-raise exception with a new message.
-    :param Exception exception : Exception.
-    :param str message : New message.
-    """
-    raise type(exception), message, sys.exc_info()[2]
+def re_raise_new_message(exception: Exception, message: str) -> None:
+    """Re-raise exception with a new message."""
+    raise type(exception)(message).with_traceback(sys.exc_info()[2])
