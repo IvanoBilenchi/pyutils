@@ -200,7 +200,7 @@ class Benchmark(object):
 
     def run(self, timeout: Optional[float]=None):
         """Runs the benchmark."""
-        time_task = Task('time', args=['-lp'] + self.task.args)
+        time_task = Task('time', args=['-lp', self.task.path] + self.task.args)
         time_task.run(timeout=timeout)
 
         stderr = time_task.stderr
