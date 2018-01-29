@@ -223,6 +223,9 @@ class Benchmark(object):
                                                             stdout=time_task.stdout,
                                                             stderr=stderr[:idx])
 
+    def __getattr__(self, item):
+        return getattr(self._task, item)
+
 
 # Public functions
 
