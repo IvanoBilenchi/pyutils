@@ -5,7 +5,7 @@ import subprocess
 import threading
 
 from distutils import spawn
-from enum import Enum, auto
+from enum import Enum
 from typing import Callable, List, Optional
 
 from . import exc
@@ -17,9 +17,9 @@ from .decorators import memoized
 
 class OutputAction(Enum):
     """Output actions."""
-    PRINT = auto()
-    DISCARD = auto()
-    STORE = auto()
+    PRINT = 0
+    DISCARD = 1
+    STORE = 2
 
 
 class Task(object):

@@ -2,15 +2,15 @@ import errno
 import os
 import sys
 
-from enum import Enum, auto
+from enum import Enum
 from typing import Any, Optional
 
 
 class FileType(Enum):
     """File type."""
-    ANY = auto()
-    FILE = auto()
-    DIR = auto()
+    ANY = 0
+    FILE = 1
+    DIR = 2
 
 
 class ProgramExit(Exception):
