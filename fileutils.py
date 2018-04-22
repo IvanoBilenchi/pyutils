@@ -50,6 +50,25 @@ def remove(path: str) -> None:
             raise
 
 
+def remove_dir(path: str) -> None:
+    """Removes the dir at the specified path, if empty. Does nothing if the file does not exist."""
+    try:
+        os.rmdir(path)
+    except OSError as e:
+        if e.errno != errno.ENOENT:
+            raise
+
+
+def remove_empty_dirs(path: str) -> None:
+    """Removes all the empty dirs in the specified folder."""
+    try:
+        for dir_path in os.listdir(path):
+            if os.path.isdir(dir_path):
+                os.rmdir(dir_path)
+    except OSError:
+        pass
+
+
 def remove_dir_contents(path: str) -> None:
     """Recursively deletes the contents of the specified folder."""
     for root, dirs, files in os.walk(path):
