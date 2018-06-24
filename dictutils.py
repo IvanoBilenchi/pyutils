@@ -1,9 +1,10 @@
-from typing import Dict, Mapping
+from typing import Dict, Mapping, Optional
 
 from . import exc
 
 
-def from_string(string: str, line_sep: str='\n', value_sep: str='=') -> Dict[str, str]:
+def from_string(string: str, line_sep: str = '\n', value_sep: str = '=',
+                strip_chars: Optional[str] = None) -> Dict[str, str]:
     """Parses a string and returns a dictionary with the key/value pairs contained in it."""
     exc.raise_if_falsy(line_sep=line_sep, value_sep=value_sep)
     dictionary = {}
@@ -16,13 +17,17 @@ def from_string(string: str, line_sep: str='\n', value_sep: str='=') -> Dict[str
         k = k.strip()
         v = v.strip()
 
+        if strip_chars:
+            k = k.strip(strip_chars)
+            v = v.strip(strip_chars)
+
         if k and v:
             dictionary[k] = v
 
     return dictionary
 
 
-def masked_with_defaults(dictionary: Mapping, defaults: Mapping, mask_falsy: bool=False) -> Dict:
+def masked_with_defaults(dictionary: Mapping, defaults: Mapping, mask_falsy: bool = False) -> Dict:
     """Masks missing dictionary values with defaults."""
     exc.raise_if_falsy(defaults=defaults)
 
