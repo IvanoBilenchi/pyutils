@@ -126,7 +126,12 @@ class Task(object):
 
         if should_raise:
             err_lines = []
-            for msg in [message, auto_msg, self.stderr]:
+
+            proc_out = self.stderr.strip() if self.stderr else None
+            if not proc_out:
+                proc_out = self.stdout.strip() if self.stdout else None
+
+            for msg in [message, auto_msg, proc_out]:
                 if msg:
                     err_lines.append(msg)
 
