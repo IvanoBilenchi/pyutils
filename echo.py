@@ -21,7 +21,8 @@ class Color(Enum):
 # Public functions
 
 
-def pretty(message: str, color: Color=None, bold: bool=False, endl: bool=True, out_file: TextIO=sys.stdout) -> None:
+def pretty(message: str, color: Color=None, bold: bool=False,
+           endl: bool=True, out_file: TextIO=sys.stdout) -> None:
     """Print colored message to the specified file."""
     msg = message
 

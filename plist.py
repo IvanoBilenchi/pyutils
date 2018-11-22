@@ -1,4 +1,5 @@
 import objc
+
 # noinspection PyUnresolvedReferences
 from Foundation import (
     NSData,
@@ -35,21 +36,25 @@ def read(plist_path: str) -> Dict:
     data, error = NSData.dataWithContentsOfFile_options_error_(plist_path, 0, objc.nil)
 
     if not data:
-        _raise_ioerror_from_nserror(error, 'Failed to load plist file at path: {}'.format(plist_path))
+        msg = 'Failed to load plist file at path: {}'.format(plist_path)
+        _raise_ioerror_from_nserror(error, msg)
 
     contents, dummy, error = NSPropertyListSerialization.propertyListWithData_options_format_error_(
         data, NSPropertyListMutableContainersAndLeaves, objc.nil, objc.nil
     )
 
     if not contents:
-        _raise_ioerror_from_nserror(error, 'Failed to deserialize plist at path: {}'.format(plist_path))
+        msg = 'Failed to deserialize plist at path: {}'.format(plist_path)
+        _raise_ioerror_from_nserror(error, msg)
 
     return contents
 
 
 def write(plist_contents: Dict, plist_path: str, plist_format: Format=Format.BINARY) -> None:
     """Write dictionary to a plist file."""
-    exc.raise_if_falsy(plist_contents=plist_contents, plist_path=plist_path, plist_format=plist_format)
+    exc.raise_if_falsy(plist_contents=plist_contents,
+                       plist_path=plist_path,
+                       plist_format=plist_format)
 
     data, error = NSPropertyListSerialization.dataWithPropertyList_format_options_error_(
         plist_contents, plist_format.value, 0, objc.nil

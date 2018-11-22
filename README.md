@@ -7,7 +7,7 @@ Ivano Bilenchi ([@IvanoBilenchi](http://www.twitter.com/IvanoBilenchi))
 
 ### Description
 
-Collection of useful Python 3 modules, mainly meant to be used in macOS CLI tools.
+Collection of useful Python 3 modules, mainly meant to be used in CLI tools.
 
 
 ### License

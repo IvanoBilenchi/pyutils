@@ -6,19 +6,17 @@ from . import echo, exc, fileutils
 class Logger(object):
     """A logger object that logs to both a file and stdout."""
 
-    # Properties
-
-    indent_level = 0  # type: int
-    indent_string = '    '  # type: str
-
     # Public methods
 
     def __init__(self, file_path: str) -> None:
         exc.raise_if_falsy(file_path=file_path)
 
-        self.__file_path = file_path  # type: str
-        self.__file = None  # type: TextIO
-        self.__should_indent = False  # type: bool
+        self.indent_level = 0
+        self.indent_string = '    '
+
+        self.__file_path = file_path
+        self.__file: TextIO = None
+        self.__should_indent = False
 
     def __enter__(self):
         self.__open()
