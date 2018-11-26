@@ -6,6 +6,13 @@ from . import echo, exc, fileutils
 class Logger(object):
     """A logger object that logs to both a file and stdout."""
 
+    # Properties
+
+    @property
+    def file_path(self) -> str:
+        """Path of the log file."""
+        return self.__file_path
+
     # Public methods
 
     def __init__(self, file_path: str) -> None:
@@ -19,18 +26,18 @@ class Logger(object):
         self.__should_indent = False
 
     def __enter__(self):
-        self.__open()
+        self.open()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.__close()
+        self.close()
 
     def log(self, message: str, color: echo.Color=None, endl: bool=True) -> None:
-        """Logs a given message to both a file and stdout."""
+        """Logs the specified message."""
         should_close = False
 
         if not self.__file:
-            self.__open()
+            self.open()
             should_close = True
 
         if self.__should_indent:
@@ -44,21 +51,20 @@ class Logger(object):
         self.__should_indent = endl
 
         if should_close:
-            self.__close()
+            self.close()
 
-    def clear(self) -> None:
-        """Removes the log file."""
-        self.__close()
-        fileutils.remove(self.__file_path)
-
-    # Private methods
-
-    def __open(self) -> None:
-        """Opens log file in append mode."""
+    def open(self) -> None:
+        """Opens the log file in append mode."""
+        self.close()
         self.__file = open(self.__file_path, mode='a')
 
-    def __close(self) -> None:
-        """Closes log file."""
+    def close(self) -> None:
+        """Closes the log file."""
         if self.__file:
             self.__file.close()
             self.__file = None
+
+    def clear(self) -> None:
+        """Removes the log file."""
+        self.close()
+        fileutils.remove(self.__file_path)
