@@ -6,11 +6,11 @@ from . import echo
 # Public functions
 
 
-def get_str(prompt: Optional[str]=None,
-            min_len: Optional[int]=None,
-            max_len: Optional[int]=None,
-            condition: Optional[Callable[[str], bool]]=None,
-            default: Optional[str]=None) -> str:
+def get_str(prompt: Optional[str] = None,
+            min_len: Optional[int] = None,
+            max_len: Optional[int] = None,
+            condition: Optional[Callable[[str], bool]] = None,
+            default: Optional[str] = None) -> str:
     """Gets a string from the command line. Trims leading and trailing whitespace.
 
     :param prompt: Input prompt.
@@ -38,11 +38,11 @@ def get_str(prompt: Optional[str]=None,
     return input_str
 
 
-def get_int(prompt: Optional[str]=None,
-            min_value: Optional[int]=None,
-            max_value: Optional[int]=None,
-            condition: Optional[Callable[[int], bool]]=None,
-            default: Optional[int]=None) -> int:
+def get_int(prompt: Optional[str] = None,
+            min_value: Optional[int] = None,
+            max_value: Optional[int] = None,
+            condition: Optional[Callable[[int], bool]] = None,
+            default: Optional[int] = None) -> int:
     """Gets an int from the command line.
 
     :param prompt: Input prompt.
@@ -78,7 +78,7 @@ def get_int(prompt: Optional[str]=None,
 # Private functions
 
 
-def _prompt_from_message(message: Optional[str]=None, default: Optional[str]=None) -> str:
+def _prompt_from_message(message: Optional[str] = None, default: Optional[str] = None) -> str:
     """Returns an input prompt."""
     if not message:
         return ''
@@ -93,7 +93,7 @@ def _prompt_from_message(message: Optional[str]=None, default: Optional[str]=Non
     return ''.join(prompt_parts)
 
 
-def _print_invalid_value(value: Any=None) -> None:
+def _print_invalid_value(value: Any = None) -> None:
     """Prints the "Invalid value" error message to stderr."""
     err_msg_components = ['Invalid value']
     if value is not None:

@@ -50,7 +50,7 @@ def read(plist_path: str) -> Dict:
     return contents
 
 
-def write(plist_contents: Dict, plist_path: str, plist_format: Format=Format.BINARY) -> None:
+def write(plist_contents: Dict, plist_path: str, plist_format: Format = Format.BINARY) -> None:
     """Write dictionary to a plist file."""
     exc.raise_if_falsy(plist_contents=plist_contents,
                        plist_path=plist_path,

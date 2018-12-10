@@ -3,7 +3,7 @@ from typing import TextIO
 from . import echo, exc, fileutils
 
 
-class Logger(object):
+class Logger:
     """A logger object that logs to both a file and stdout."""
 
     # Properties
@@ -32,7 +32,7 @@ class Logger(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def log(self, message: str, color: echo.Color=None, endl: bool=True) -> None:
+    def log(self, message: str, color: echo.Color = None, endl: bool = True) -> None:
         """Logs the specified message."""
         should_close = False
 

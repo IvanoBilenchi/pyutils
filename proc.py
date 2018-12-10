@@ -55,8 +55,8 @@ class Task(object):
 
     @classmethod
     def spawn(cls, executable: str,
-              args: Optional[List[str]]=None,
-              output_action: OutputAction=OutputAction.STORE) -> 'Task':
+              args: Optional[List[str]] = None,
+              output_action: OutputAction = OutputAction.STORE) -> 'Task':
         """Convenience factory method: builds, runs and returns a task."""
         task = cls(executable, args=args, output_action=output_action)
         task.run()
@@ -64,20 +64,20 @@ class Task(object):
 
     def __init__(self,
                  executable: str,
-                 args: Optional[List[str]]=None,
-                 output_action: OutputAction=OutputAction.STORE) -> None:
+                 args: Optional[List[str]] = None,
+                 output_action: OutputAction = OutputAction.STORE) -> None:
         exc.raise_if_falsy(executable=executable, output_action=output_action)
 
         if not os.path.isabs(executable):
             executable = find_executable(executable)
 
-        self._path = executable  # type: str
-        self._args = args  # type: Optional[List[str]]
-        self._output_action = output_action  # type: OutputAction
+        self._path = executable
+        self._args = args
+        self._output_action = output_action
 
-        self._completed = None  # type: subprocess.CompletedProcess
+        self._completed: subprocess.CompletedProcess = None
 
-    def run(self, timeout: Optional[float]=None) -> None:
+    def run(self, timeout: Optional[float] = None) -> None:
         """Runs the task."""
         try:
             handle = None
@@ -104,15 +104,15 @@ class Task(object):
         except Exception as e:
             exc.re_raise_new_message(e, 'Failed to call process: {}'.format(self.path))
 
-    def run_async(self, timeout: Optional[float]=None,
-                  exit_handler: Optional[Callable[['Task', Exception], None]]=None) -> None:
+    def run_async(self, timeout: Optional[float] = None,
+                  exit_handler: Optional[Callable[['Task', Exception], None]] = None) -> None:
         """Runs the task asynchronously."""
         bg_proc = threading.Thread(target=self._run_async_thread,
                                    args=[timeout, exit_handler])
         bg_proc.daemon = True
         bg_proc.start()
 
-    def raise_if_failed(self, ensure_output: bool=False, message: Optional[str]=None) -> None:
+    def raise_if_failed(self, ensure_output: bool = False, message: Optional[str] = None) -> None:
         """Raise an IOError if the task returned with a non-zero exit code."""
         auto_msg = None
         should_raise = False
@@ -148,9 +148,8 @@ class Task(object):
 
         return args
 
-    def _run_async_thread(self,
-                          timeout: Optional[float]=None,
-                          exit_handler: Optional[Callable[['Task', Exception], None]]=None) -> None:
+    def _run_async_thread(self, timeout: Optional[float],
+                          exit_handler: Optional[Callable[['Task', Exception], None]]) -> None:
         err = None
 
         try:
@@ -167,9 +166,9 @@ class Jar(Task):
 
     def __init__(self,
                  jar: str,
-                 jar_args: Optional[List[str]]=None,
-                 vm_opts: Optional[List[str]]=None,
-                 output_action: OutputAction=OutputAction.STORE) -> None:
+                 jar_args: Optional[List[str]] = None,
+                 vm_opts: Optional[List[str]] = None,
+                 output_action: OutputAction = OutputAction.STORE) -> None:
 
         exc.raise_if_falsy(jar=jar, output_action=output_action)
 
@@ -203,7 +202,7 @@ class Benchmark(object):
         self._task = task
         self._max_memory = 0
 
-    def run(self, timeout: Optional[float]=None):
+    def run(self, timeout: Optional[float] = None):
         """Runs the benchmark."""
         time_task = Task('time', args=['-lp', self.task.path] + self.task.args)
         time_task.run(timeout=timeout)
@@ -236,7 +235,7 @@ class Benchmark(object):
 
 
 @memoized
-def find_executable(executable: str, path: Optional[str]=None) -> str:
+def find_executable(executable: str, path: Optional[str] = None) -> str:
     """Try to find 'executable' in the directories listed in 'path'."""
     exe_path = spawn.find_executable(executable, path)
 
@@ -246,7 +245,7 @@ def find_executable(executable: str, path: Optional[str]=None) -> str:
     return exe_path
 
 
-def killall(process: str, signal: Optional[str]=None) -> bool:
+def killall(process: str, signal: Optional[str] = None) -> bool:
     """killall command wrapper function.
 
     :return: True if a process called 'name' was found, False otherwise.
@@ -262,7 +261,7 @@ def killall(process: str, signal: Optional[str]=None) -> bool:
     return Task.spawn('killall', args=args, output_action=OutputAction.DISCARD).exit_code == 0
 
 
-def pkill(pattern: str, signal: Optional[str]=None, match_arguments: bool=True) -> bool:
+def pkill(pattern: str, signal: Optional[str] = None, match_arguments: bool = True) -> bool:
     """pkill command wrapper function.
 
     :return: True if the signal was successfully delivered, False otherwise.

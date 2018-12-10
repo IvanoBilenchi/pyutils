@@ -18,12 +18,12 @@ class ProgramExit(Exception):
     pass
 
 
-def raise_exit(message: Optional[str]=None) -> None:
+def raise_exit(message: Optional[str] = None) -> None:
     """Raise a ProgramExit with the specified message."""
     raise ProgramExit(message)
 
 
-def raise_ioerror(err_no: int, path: Optional[str]=None, message: Optional[str]=None) -> None:
+def raise_ioerror(err_no: int, path: Optional[str] = None, message: Optional[str] = None) -> None:
     """Raise an IOError with an auto-generated message based on err_no."""
     if not message:
         message = os.strerror(err_no) + '.'
@@ -37,7 +37,7 @@ def raise_ioerror(err_no: int, path: Optional[str]=None, message: Optional[str]=
     raise e
 
 
-def raise_not_found(path: Optional[str]=None, message: Optional[str]=None) -> None:
+def raise_not_found(path: Optional[str] = None, message: Optional[str] = None) -> None:
     """Raise a 'file not found' exception."""
     raise_ioerror(errno.ENOENT, path, message)
 
@@ -63,7 +63,7 @@ def raise_if_falsy(**kwargs: Any) -> None:
             raise ValueError('Illegal {} value for: {}'.format(adj, key))
 
 
-def raise_if_not_found(path: str, file_type: FileType=FileType.ANY) -> None:
+def raise_if_not_found(path: str, file_type: FileType = FileType.ANY) -> None:
     """Raise exception if the specified file does not exist."""
     raise_if_falsy(path=path)
 
