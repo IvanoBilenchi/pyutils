@@ -27,13 +27,21 @@ def create_dir(path: str) -> None:
             raise
 
 
+def human_readable_scale_and_unit(n_bytes: int) -> (int, str):
+    """Returns the human readable scale and unit for the specified bytes."""
+    scale = 1
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
+        if n_bytes < 1024:
+            return scale, unit + 'B'
+        n_bytes /= 1024
+        scale *= 1024
+    return scale, 'YiB'
+
+
 def human_readable_bytes(n_bytes: int) -> str:
     """Returns the human readable size for the specified bytes."""
-    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
-        if abs(n_bytes) < 1024.0:
-            return '{:3.1f} {}B'.format(n_bytes, unit)
-        n_bytes /= 1024.0
-    return '{:.1f} {}B'.format(n_bytes, 'Yi')
+    scale, unit = human_readable_scale_and_unit(n_bytes)
+    return '{:.1f} {}'.format(n_bytes / scale, unit)
 
 
 def human_readable_size(path: str) -> str:
