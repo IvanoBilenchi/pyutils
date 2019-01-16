@@ -22,7 +22,7 @@ class OutputAction(Enum):
     STORE = 2
 
 
-class Task(object):
+class Task:
     """Spawn processes and easily capture their output."""
 
     @property
@@ -185,7 +185,7 @@ class Jar(Task):
         super(Jar, self).__init__(executable='java', args=args, output_action=output_action)
 
 
-class Benchmark(object):
+class Benchmark:
     """Runs benchmarks for a given task."""
 
     @property
