@@ -1,11 +1,11 @@
 import errno
-import re
 import os
+import re
 import subprocess
 import threading
-
 from distutils import spawn
 from enum import Enum
+from time import perf_counter_ns
 from typing import Callable, List, Optional
 
 from . import exc
@@ -196,16 +196,32 @@ class Benchmark(object):
     def max_memory(self) -> int:
         return self._max_memory
 
+    @property
+    def nanoseconds(self) -> int:
+        return self._nanos
+
+    @property
+    def milliseconds(self) -> float:
+        return self._nanos / 1E6
+
+    @property
+    def seconds(self) -> float:
+        return self._nanos / 1E9
+
     def __init__(self, task: Task) -> None:
         exc.raise_if_none(task=task)
 
         self._task = task
         self._max_memory = 0
+        self._nanos = 0
 
     def run(self, timeout: Optional[float] = None):
         """Runs the benchmark."""
         time_task = Task('time', args=['-lp', self.task.path] + self.task.args)
+
+        start = perf_counter_ns()
         time_task.run(timeout=timeout)
+        self._nanos = perf_counter_ns() - start
 
         stderr = time_task.stderr
         exc.raise_if_falsy(stderr=stderr)
