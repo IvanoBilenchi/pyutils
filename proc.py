@@ -383,6 +383,29 @@ def get_children_pids(pid: int, recursive: bool = False) -> Optional[List[int]]:
         return None
 
 
+def find_pids(pattern: str, regex: bool = False,
+              match_arguments: bool = False, only_first: bool = False) -> List[int]:
+    """Find PIDs by name or regex."""
+    c_regex = re.compile(pattern) if regex else None
+    pids = []
+
+    for proc in ps.process_iter():
+        try:
+            haystack = ' '.join(proc.cmdline()) if match_arguments else proc.name()
+        except ps.AccessDenied:
+            continue
+
+        found = c_regex.search(haystack) if regex else pattern == haystack
+
+        if found:
+            pids.append(proc.pid)
+
+            if only_first:
+                break
+
+    return pids
+
+
 def kill(pid: int, sig: signal.Signals = signal.SIGKILL, children: bool = False) -> None:
     """Sends a signal to the specified process and (optionally) to its children."""
     proc = ps.Process(pid)
@@ -402,10 +425,9 @@ def killall(process: str, sig: signal.Signals = signal.SIGKILL) -> bool:
     exc.raise_if_falsy(process=process)
     found = False
 
-    for proc in ps.process_iter():
-        if proc.name() == process:
-            found = True
-            proc.send_signal(sig)
+    for pid in find_pids(process):
+        found = True
+        kill(pid, sig=sig)
 
     return found
 
@@ -416,15 +438,10 @@ def pkill(pattern: str, sig: signal.Signals = signal.SIGKILL, match_arguments: b
     :return: True if a matching process was found, False otherwise.
     """
     exc.raise_if_falsy(pattern=pattern)
-    regex = re.compile(pattern)
-
     found = False
 
-    for proc in ps.process_iter():
-        haystack = ' '.join(proc.cmdline()) if match_arguments else proc.name()
-
-        if regex.search(haystack):
-            found = True
-            proc.send_signal(sig)
+    for pid in find_pids(pattern, regex=True, match_arguments=match_arguments):
+        found = True
+        kill(pid, sig=sig)
 
     return found
