@@ -1,12 +1,15 @@
 import errno
 import os
 import re
-import subprocess
+import signal
+import subprocess as sp
 import threading
 from distutils import spawn
 from enum import Enum
 from time import perf_counter_ns
 from typing import Callable, List, Optional
+
+import psutil as ps
 
 from . import exc
 from .decorators import memoized
@@ -42,6 +45,10 @@ class Task:
         return self._output_action
 
     @property
+    def pid(self) -> Optional[int]:
+        return self._process.pid if self._process else None
+
+    @property
     def stdout(self) -> Optional[str]:
         return self._completed.stdout
 
@@ -62,6 +69,10 @@ class Task:
         task.run()
         return task
 
+    @classmethod
+    def copying(cls, task: 'Task') -> 'Task':
+        return cls(task.path, args=task.args, output_action=task.output_action)
+
     def __init__(self,
                  executable: str,
                  args: Optional[List[str]] = None,
@@ -75,7 +86,8 @@ class Task:
         self._args = args
         self._output_action = output_action
 
-        self._completed: subprocess.CompletedProcess = None
+        self._completed: sp.CompletedProcess = None
+        self._process: sp.Popen = None
 
     def run(self, timeout: Optional[float] = None) -> None:
         """Runs the task."""
@@ -83,26 +95,41 @@ class Task:
             handle = None
 
             if self.output_action == OutputAction.DISCARD:
-                handle = subprocess.DEVNULL
+                handle = sp.DEVNULL
             elif self.output_action == OutputAction.STORE:
-                handle = subprocess.PIPE
+                handle = sp.PIPE
 
-            completed = subprocess.run(self._popen_args,
-                                       stdout=handle,
-                                       stderr=handle,
-                                       universal_newlines=True,
-                                       timeout=timeout)
+            with sp.Popen(self._popen_args, stdout=handle, stderr=handle,
+                          universal_newlines=True) as process:
+                self._process = process
 
-            if completed.stdout:
-                completed.stdout = completed.stdout.strip()
+                try:
+                    stdout, stderr = process.communicate(timeout=timeout)
+                except sp.TimeoutExpired:
+                    kill(process.pid, children=True)
+                    stdout, stderr = process.communicate()
+                    raise sp.TimeoutExpired(process.args, timeout, output=stdout, stderr=stderr)
+                except Exception:
+                    kill(process.pid, children=True)
+                    raise
+                finally:
+                    self._process = None
 
-            if completed.stderr:
-                completed.stderr = completed.stderr.strip()
+                retcode = process.poll()
 
-            self._completed = completed
+            if stdout:
+                stdout = stdout.strip()
+
+            if stderr:
+                stderr = stderr.strip()
+
+            self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
 
         except Exception as e:
-            exc.re_raise_new_message(e, 'Failed to call process: {}'.format(self.path))
+            try:
+                exc.re_raise_new_message(e, 'Failed to call process: {}'.format(self.path))
+            except Exception:
+                raise e
 
     def run_async(self, timeout: Optional[float] = None,
                   exit_handler: Optional[Callable[['Task', Exception], None]] = None) -> None:
@@ -111,6 +138,10 @@ class Task:
                                    args=[timeout, exit_handler])
         bg_proc.daemon = True
         bg_proc.start()
+
+    def send_signal(self, sig: int) -> None:
+        if self._process:
+            self._process.send_signal(sig)
 
     def raise_if_failed(self, ensure_output: bool = False, message: Optional[str] = None) -> None:
         """Raise an IOError if the task returned with a non-zero exit code."""
@@ -215,7 +246,7 @@ class Benchmark:
         self._max_memory = 0
         self._nanos = 0
 
-    def run(self, timeout: Optional[float] = None):
+    def run(self, timeout: Optional[float] = None) -> None:
         """Runs the benchmark."""
         time_task = Task('time', args=['-lp', self.task.path] + self.task.args)
 
@@ -238,13 +269,96 @@ class Benchmark:
         self._max_memory = int(result.group(1))
 
         # noinspection PyProtectedMember
-        self._task._completed = subprocess.CompletedProcess(self._task.args,
-                                                            time_task.exit_code,
-                                                            stdout=time_task.stdout,
-                                                            stderr=stderr[:idx])
+        self._task._completed = sp.CompletedProcess(self._task.args,
+                                                    time_task.exit_code,
+                                                    stdout=time_task.stdout,
+                                                    stderr=stderr[:idx])
 
     def __getattr__(self, item):
         return getattr(self._task, item)
+
+
+class EnergyProfiler:
+    """Runs an energy impact profiler for a given task."""
+
+    @property
+    def samples(self) -> List[float]:
+        return self._samples
+
+    @property
+    def mean(self) -> float:
+        return sum(self._samples) / len(self._samples)
+
+    @property
+    def score(self) -> float:
+        return sum(self._samples) * self._sampling_interval + self.mean * self._last_sample_interval
+
+    def __init__(self, task: Task, sampling_interval: int = 1) -> None:
+        exc.raise_if_none(task=task)
+
+        self._task = task
+        self._sampling_interval = sampling_interval if sampling_interval > 0 else 1
+
+        self._energy_task = Task('powermetrics', args=[
+            '--samplers', 'tasks',
+            '--show-process-energy',
+            '-i', str(self._sampling_interval * 1000),
+            '-n', '1',
+            '-o', 'pid'
+        ])
+
+        self._samples: List[float] = []
+        self._last_sample_interval: int = 0
+
+    def run(self, timeout: Optional[float] = None) -> None:
+        """Runs the profiler."""
+        exc.raise_if_not_root()
+
+        threading.Thread(target=self._run_energy_profiler).start()
+        self._task.run(timeout)
+
+        self._last_sample_interval = perf_counter_ns()
+        self._energy_task.send_signal(signal.SIGTERM)
+
+        self._energy_task = None
+        self._task = None
+
+    # Private
+
+    def _run_energy_profiler(self) -> None:
+        last_sampled_time = 0
+        self._energy_task.run()
+
+        while self._task is not None:
+            last_sampled_time = perf_counter_ns()
+            self._parse_output()
+            self._restart_energy_task()
+
+        self._last_sample_interval = (self._last_sample_interval - last_sampled_time) / 1E9
+
+    def _parse_output(self) -> None:
+        pids = self._get_task_pids()
+        score = 0.0
+
+        for line in self._energy_task.stdout.split('\n'):
+            components = line.split()
+
+            try:
+                pids.remove(int(components[1]))
+                score += float(components[-1])
+            except (IndexError, ValueError):
+                continue
+
+        self._samples.append(score)
+
+    def _restart_energy_task(self) -> None:
+        self._energy_task = Task.copying(self._energy_task)
+        self._energy_task.run()
+
+    def _get_task_pids(self) -> List[int]:
+        pid = self._task.pid
+        children_pids = get_children_pids(pid, recursive=True)
+        return [] if children_pids is None else [pid] + children_pids
 
 
 # Public functions
@@ -261,35 +375,56 @@ def find_executable(executable: str, path: Optional[str] = None) -> str:
     return exe_path
 
 
-def killall(process: str, signal: Optional[str] = None) -> bool:
-    """killall command wrapper function.
+def get_children_pids(pid: int, recursive: bool = False) -> Optional[List[int]]:
+    """Retrieves the PIDs of the children of the process with the specified PID."""
+    try:
+        return [p.pid for p in ps.Process(pid).children(recursive=recursive)]
+    except ps.NoSuchProcess:
+        return None
+
+
+def kill(pid: int, sig: signal.Signals = signal.SIGKILL, children: bool = False) -> None:
+    """Sends a signal to the specified process and (optionally) to its children."""
+    proc = ps.Process(pid)
+
+    if children:
+        for child in proc.children(recursive=True):
+            child.send_signal(sig)
+
+    proc.send_signal(sig)
+
+
+def killall(process: str, sig: signal.Signals = signal.SIGKILL) -> bool:
+    """Sends signal to processes by name.
 
     :return: True if a process called 'name' was found, False otherwise.
     """
     exc.raise_if_falsy(process=process)
+    found = False
 
-    args = []
+    for proc in ps.process_iter():
+        if proc.name() == process:
+            found = True
+            proc.send_signal(sig)
 
-    if signal:
-        args.append('-' + str(signal))
-    args.append(process)
-
-    return Task.spawn('killall', args=args, output_action=OutputAction.DISCARD).exit_code == 0
+    return found
 
 
-def pkill(pattern: str, signal: Optional[str] = None, match_arguments: bool = True) -> bool:
-    """pkill command wrapper function.
+def pkill(pattern: str, sig: signal.Signals = signal.SIGKILL, match_arguments: bool = True) -> bool:
+    """pkill-like function.
 
-    :return: True if the signal was successfully delivered, False otherwise.
+    :return: True if a matching process was found, False otherwise.
     """
     exc.raise_if_falsy(pattern=pattern)
+    regex = re.compile(pattern)
 
-    args = []
+    found = False
 
-    if signal:
-        args.append('-' + str(signal))
-    if match_arguments:
-        args.append('-f')
-    args.append(pattern)
+    for proc in ps.process_iter():
+        haystack = ' '.join(proc.cmdline()) if match_arguments else proc.name()
 
-    return Task.spawn('pkill', args=args, output_action=OutputAction.DISCARD).exit_code == 0
+        if regex.search(haystack):
+            found = True
+            proc.send_signal(sig)
+
+    return found
