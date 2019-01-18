@@ -1,4 +1,3 @@
-import errno
 import os
 import re
 import signal
@@ -11,7 +10,7 @@ from typing import Callable, List, Optional
 
 import psutil as ps
 
-from . import exc
+from . import exc, fileutils
 from .decorators import memoized
 
 
@@ -99,23 +98,20 @@ class Task:
             elif self.output_action == OutputAction.STORE:
                 handle = sp.PIPE
 
-            with sp.Popen(self._popen_args, stdout=handle, stderr=handle,
-                          universal_newlines=True) as process:
-                self._process = process
+            self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle,
+                                     universal_newlines=True)
 
-                try:
-                    stdout, stderr = process.communicate(timeout=timeout)
-                except sp.TimeoutExpired:
-                    kill(process.pid, children=True)
-                    stdout, stderr = process.communicate()
-                    raise sp.TimeoutExpired(process.args, timeout, output=stdout, stderr=stderr)
-                except Exception:
-                    kill(process.pid, children=True)
-                    raise
-                finally:
-                    self._process = None
+            try:
+                stdout, stderr = self._process.communicate(timeout=timeout)
+            except sp.TimeoutExpired:
+                self.send_signal(sig=signal.SIGKILL, children=True)
+                stdout, stderr = self._process.communicate()
+                raise sp.TimeoutExpired(self._process.args, timeout, output=stdout, stderr=stderr)
+            except Exception:
+                self.send_signal(sig=signal.SIGKILL, children=True)
+                raise
 
-                retcode = process.poll()
+            retcode = self._process.poll()
 
             if stdout:
                 stdout = stdout.strip()
@@ -139,9 +135,9 @@ class Task:
         bg_proc.daemon = True
         bg_proc.start()
 
-    def send_signal(self, sig: int) -> None:
-        if self._process:
-            self._process.send_signal(sig)
+    def send_signal(self, sig: int = signal.SIGKILL, children: bool = False) -> None:
+        if self._process and self._process.pid is not None:
+            kill(self._process.pid, sig=sig, children=children)
 
     def raise_if_failed(self, ensure_output: bool = False, message: Optional[str] = None) -> None:
         """Raise an IOError if the task returned with a non-zero exit code."""
@@ -228,6 +224,10 @@ class Benchmark:
         return self._max_memory
 
     @property
+    def max_memory_string(self) -> str:
+        return fileutils.human_readable_bytes(self._max_memory)
+
+    @property
     def nanoseconds(self) -> int:
         return self._nanos
 
@@ -248,31 +248,16 @@ class Benchmark:
 
     def run(self, timeout: Optional[float] = None) -> None:
         """Runs the benchmark."""
-        time_task = Task('time', args=['-lp', self.task.path] + self.task.args)
+        self.task.run_async(timeout=timeout)
+
+        while self.task.pid is None:
+            pass
 
         start = perf_counter_ns()
-        time_task.run(timeout=timeout)
+        result = os.wait4(self.task.pid, os.WEXITED)[2]
+
         self._nanos = perf_counter_ns() - start
-
-        stderr = time_task.stderr
-        exc.raise_if_falsy(stderr=stderr)
-
-        idx = stderr.rfind('real ')
-
-        if idx < 0:
-            exc.raise_ioerror(errno.ENODATA, message='Benchmark failed.')
-
-        time_output = stderr[idx:]
-        result = re.search(r'[ ]*([0-9]+)[ ]+maximum resident set size', time_output)
-        exc.raise_if_falsy(result=result)
-
-        self._max_memory = int(result.group(1))
-
-        # noinspection PyProtectedMember
-        self._task._completed = sp.CompletedProcess(self._task.args,
-                                                    time_task.exit_code,
-                                                    stdout=time_task.stdout,
-                                                    stderr=stderr[:idx])
+        self._max_memory = result.ru_maxrss
 
     def __getattr__(self, item):
         return getattr(self._task, item)
@@ -406,7 +391,7 @@ def find_pids(pattern: str, regex: bool = False,
     return pids
 
 
-def kill(pid: int, sig: signal.Signals = signal.SIGKILL, children: bool = False) -> None:
+def kill(pid: int, sig: int = signal.SIGKILL, children: bool = False) -> None:
     """Sends a signal to the specified process and (optionally) to its children."""
     proc = ps.Process(pid)
 
@@ -417,7 +402,7 @@ def kill(pid: int, sig: signal.Signals = signal.SIGKILL, children: bool = False)
     proc.send_signal(sig)
 
 
-def killall(process: str, sig: signal.Signals = signal.SIGKILL) -> bool:
+def killall(process: str, sig: int = signal.SIGKILL) -> bool:
     """Sends signal to processes by name.
 
     :return: True if a process called 'name' was found, False otherwise.
@@ -432,7 +417,7 @@ def killall(process: str, sig: signal.Signals = signal.SIGKILL) -> bool:
     return found
 
 
-def pkill(pattern: str, sig: signal.Signals = signal.SIGKILL, match_arguments: bool = True) -> bool:
+def pkill(pattern: str, sig: int = signal.SIGKILL, match_arguments: bool = True) -> bool:
     """pkill-like function.
 
     :return: True if a matching process was found, False otherwise.
