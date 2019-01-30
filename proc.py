@@ -5,6 +5,7 @@ import subprocess as sp
 import threading
 from distutils import spawn
 from enum import Enum
+from io import StringIO
 from time import perf_counter_ns
 from typing import Callable, List, Optional
 
@@ -49,15 +50,15 @@ class Task:
 
     @property
     def stdout(self) -> Optional[str]:
-        return self._completed.stdout
+        return self._completed.stdout if self._completed else None
 
     @property
     def stderr(self) -> Optional[str]:
-        return self._completed.stderr
+        return self._completed.stderr if self._completed else None
 
     @property
     def exit_code(self) -> Optional[int]:
-        return self._completed.returncode
+        return self._completed.returncode if self._completed else None
 
     @classmethod
     def spawn(cls, executable: str,
@@ -213,7 +214,7 @@ class Jar(Task):
 
 
 class Benchmark:
-    """Runs benchmarks for a given task."""
+    """Run benchmarks for a given task."""
 
     @property
     def task(self) -> Task:
@@ -264,81 +265,99 @@ class Benchmark:
 
 
 class EnergyProfiler:
-    """Runs an energy impact profiler for a given task."""
-
-    @property
-    def samples(self) -> List[float]:
-        return self._samples
+    """Run an energy impact profiler for a given task."""
 
     @property
     def mean(self) -> float:
-        return sum(self._samples) / len(self._samples)
+        n_samples = len(self.samples)
+        return sum(self.samples) / n_samples if n_samples > 0 else 0.0
 
     @property
     def score(self) -> float:
-        return sum(self._samples) * self._sampling_interval + self.mean * self._last_sample_interval
+        return sum(self.samples) * self.sampling_interval / 1000.0
 
-    def __init__(self, task: Task, sampling_interval: int = 1) -> None:
+    def __init__(self, task: Task, sampling_interval: int = 1000) -> None:
         exc.raise_if_none(task=task)
 
-        self._task = task
-        self._sampling_interval = sampling_interval if sampling_interval > 0 else 1
+        self.samples: List[float] = []
+        self.sampling_interval = sampling_interval if sampling_interval > 0 else 1000
 
+        self._task = task
         self._energy_task = Task('powermetrics', args=[
             '--samplers', 'tasks',
             '--show-process-energy',
-            '-i', str(self._sampling_interval * 1000),
+            '-i', str(self.sampling_interval),
             '-n', '1',
-            '-o', 'pid'
         ])
-
-        self._samples: List[float] = []
-        self._last_sample_interval: int = 0
+        self._energy_task_event: threading.Event = threading.Event()
+        self._dead_task_score: float = 0.0
 
     def run(self, timeout: Optional[float] = None) -> None:
         """Runs the profiler."""
         exc.raise_if_not_root()
 
-        threading.Thread(target=self._run_energy_profiler).start()
+        energy_thread = threading.Thread(target=self._run_energy_profiler)
+        energy_thread.daemon = True
+        energy_thread.start()
+
         self._task.run(timeout)
+        self._energy_task_event.wait(timeout=self.sampling_interval)
 
-        self._last_sample_interval = perf_counter_ns()
-        self._energy_task.send_signal(signal.SIGTERM)
-
-        self._energy_task = None
-        self._task = None
+    def __getattr__(self, item):
+        return getattr(self._task, item)
 
     # Private
 
     def _run_energy_profiler(self) -> None:
-        last_sampled_time = 0
-        self._energy_task.run()
+        while self._task.exit_code is None:
+            self._run_energy_task()
 
-        while self._task is not None:
-            last_sampled_time = perf_counter_ns()
-            self._parse_output()
-            self._restart_energy_task()
-
-        self._last_sample_interval = (self._last_sample_interval - last_sampled_time) / 1E9
-
-    def _parse_output(self) -> None:
+    def _parse_output(self) -> Optional[float]:
         pids = self._get_task_pids()
-        score = 0.0
+        score = None
+        dead_task_score = None
 
-        for line in self._energy_task.stdout.split('\n'):
-            components = line.split()
+        for line in StringIO(self._energy_task.stdout):
+            components = line.strip().split()
 
             try:
-                pids.remove(int(components[1]))
-                score += float(components[-1])
+                pid = int(components[1])
+
+                if pid == -1:
+                    # Estimate based on DEAD_TASKS.
+                    dead_task_score = float(components[-1])
+
+                    n_samples = len(self.samples)
+
+                    if n_samples > 1:
+                        mean = self.mean
+
+                        # Discard DEAD_TASKS outliers.
+                        if dead_task_score > n_samples * mean / 2.0:
+                            dead_task_score = mean
+                else:
+                    # Sum sample if pid belongs to the profiled process.
+                    pids.remove(pid)
+                    pid_score = float(components[-1])
+
+                    score = pid_score if score is None else score + pid_score
             except (IndexError, ValueError):
                 continue
 
-        self._samples.append(score)
+        return dead_task_score if score is None else score
 
-    def _restart_energy_task(self) -> None:
+    def _run_energy_task(self) -> None:
+        self._energy_task_event.clear()
+
         self._energy_task = Task.copying(self._energy_task)
         self._energy_task.run()
+
+        score = self._parse_output()
+
+        if score is not None:
+            self.samples.append(score)
+
+        self._energy_task_event.set()
 
     def _get_task_pids(self) -> List[int]:
         pid = self._task.pid
