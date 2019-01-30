@@ -18,6 +18,27 @@ def contains(file_path: str, string: str) -> bool:
     return result
 
 
+def chmod(path: str, mode: int, recursive: bool = False, dir_mode: int = None) -> None:
+    """
+    chmod-like function. If 'recursive' is True, 'dir_mode' specifies which mode is applied
+    to directories (defaults to 'mode').
+    """
+    if not recursive:
+        os.chmod(path, mode)
+        return
+
+    if dir_mode is None:
+        dir_mode = mode
+
+    os.chmod(path, dir_mode)
+
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            os.chmod(os.path.join(root, d), dir_mode)
+        for f in files:
+            os.chmod(os.path.join(root, f), mode)
+
+
 def create_dir(path: str) -> None:
     """Creates an empty directory. Does nothing if it already exists."""
     try:
