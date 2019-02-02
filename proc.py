@@ -2,11 +2,10 @@ import os
 import re
 import signal
 import subprocess as sp
-import threading
 from distutils import spawn
 from enum import Enum
-from io import StringIO
-from time import perf_counter_ns
+from threading import Event, Thread
+from time import perf_counter_ns, sleep
 from typing import Callable, List, Optional
 
 import psutil as ps
@@ -131,8 +130,7 @@ class Task:
     def run_async(self, timeout: Optional[float] = None,
                   exit_handler: Optional[Callable[['Task', Exception], None]] = None) -> None:
         """Runs the task asynchronously."""
-        bg_proc = threading.Thread(target=self._run_async_thread,
-                                   args=[timeout, exit_handler])
+        bg_proc = Thread(target=self._run_async_thread, args=[timeout, exit_handler])
         bg_proc.daemon = True
         bg_proc.start()
 
@@ -283,24 +281,31 @@ class EnergyProfiler:
         self.sampling_interval = sampling_interval if sampling_interval > 0 else 1000
 
         self._task = task
-        self._energy_task = Task('powermetrics', args=[
-            '--samplers', 'tasks',
-            '--show-process-energy',
-            '-i', str(self.sampling_interval),
-            '-n', '1',
-        ])
-        self._energy_task_event: threading.Event = threading.Event()
+        self._energy_task: sp.Popen = None
+        self._energy_task_event: Event = Event()
         self._dead_task_score: float = 0.0
 
     def run(self, timeout: Optional[float] = None) -> None:
         """Runs the profiler."""
         exc.raise_if_not_root()
 
-        energy_thread = threading.Thread(target=self._run_energy_profiler)
-        energy_thread.daemon = True
-        energy_thread.start()
+        args = [
+            find_executable('powermetrics'),
+            '--samplers', 'tasks',
+            '--show-process-energy',
+            '-i', '0',
+        ]
+
+        self._energy_task = sp.Popen(args, stdout=sp.PIPE, stderr=sp.DEVNULL,
+                                     universal_newlines=True)
+
+        for thread in [Thread(target=self._parse_energy_profiler),
+                       Thread(target=self._poll_energy_profiler)]:
+            thread.daemon = True
+            thread.start()
 
         self._task.run(timeout)
+        self._stop_energy_profiler()
         self._energy_task_event.wait(timeout=self.sampling_interval)
 
     def __getattr__(self, item):
@@ -308,16 +313,34 @@ class EnergyProfiler:
 
     # Private
 
-    def _run_energy_profiler(self) -> None:
-        while self._task.exit_code is None:
-            self._run_energy_task()
+    def _parse_energy_profiler(self) -> None:
+        self._energy_task_event.clear()
 
-    def _parse_output(self) -> Optional[float]:
+        task_lines = []
+        should_parse = False
+
+        for line in self._energy_task.stdout:
+            line = line.strip()
+
+            if '*** Running tasks ***' in line:
+                should_parse = True
+            elif line.startswith('ALL_TASKS'):
+                if should_parse:
+                    self._parse_tasks(task_lines)
+                    task_lines.clear()
+                    should_parse = False
+            elif should_parse:
+                task_lines.append(line)
+
+        self._energy_task.communicate()
+        self._energy_task_event.set()
+
+    def _parse_tasks(self, tasks: List[str]) -> None:
         pids = self._get_task_pids()
         score = None
         dead_task_score = None
 
-        for line in StringIO(self._energy_task.stdout):
+        for line in tasks:
             components = line.strip().split()
 
             try:
@@ -344,20 +367,20 @@ class EnergyProfiler:
             except (IndexError, ValueError):
                 continue
 
-        return dead_task_score if score is None else score
-
-    def _run_energy_task(self) -> None:
-        self._energy_task_event.clear()
-
-        self._energy_task = Task.copying(self._energy_task)
-        self._energy_task.run()
-
-        score = self._parse_output()
+        score = dead_task_score if score is None else score
 
         if score is not None:
             self.samples.append(score)
 
-        self._energy_task_event.set()
+    def _poll_energy_profiler(self) -> None:
+        while self._task.exit_code is None:
+            sleep(self.sampling_interval / 1000.0)
+            self._energy_task.send_signal(signal.SIGINFO)
+
+    def _stop_energy_profiler(self) -> None:
+        self._energy_task.send_signal(signal.SIGINFO)
+        sleep(0.1)
+        self._energy_task.send_signal(signal.SIGTERM)
 
     def _get_task_pids(self) -> List[int]:
         pid = self._task.pid
