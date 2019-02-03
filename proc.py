@@ -88,7 +88,7 @@ class Task:
         self._completed: sp.CompletedProcess = None
         self._process: sp.Popen = None
 
-    def run(self, timeout: Optional[float] = None) -> None:
+    def run(self, wait: bool = True, timeout: Optional[float] = None) -> None:
         """Runs the task."""
         try:
             handle = None
@@ -101,31 +101,36 @@ class Task:
             self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle,
                                      universal_newlines=True)
 
-            try:
-                stdout, stderr = self._process.communicate(timeout=timeout)
-            except sp.TimeoutExpired:
-                self.send_signal(sig=signal.SIGKILL, children=True)
-                stdout, stderr = self._process.communicate()
-                raise sp.TimeoutExpired(self._process.args, timeout, output=stdout, stderr=stderr)
-            except Exception:
-                self.send_signal(sig=signal.SIGKILL, children=True)
-                raise
-
-            retcode = self._process.poll()
-
-            if stdout:
-                stdout = stdout.strip()
-
-            if stderr:
-                stderr = stderr.strip()
-
-            self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
+            if wait:
+                self.wait(timeout=timeout)
 
         except Exception as e:
             try:
                 exc.re_raise_new_message(e, 'Failed to call process: {}'.format(self.path))
             except Exception:
                 raise e
+
+    def wait(self, timeout: Optional[float] = None) -> None:
+        """Wait for the task to exit."""
+        try:
+            stdout, stderr = self._process.communicate(timeout=timeout)
+        except sp.TimeoutExpired:
+            self.send_signal(sig=signal.SIGKILL, children=True)
+            stdout, stderr = self._process.communicate()
+            raise sp.TimeoutExpired(self._process.args, timeout, output=stdout, stderr=stderr)
+        except Exception:
+            self.send_signal(sig=signal.SIGKILL, children=True)
+            raise
+
+        retcode = self._process.poll()
+
+        if stdout:
+            stdout = stdout.strip()
+
+        if stderr:
+            stderr = stderr.strip()
+
+        self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
 
     def run_async(self, timeout: Optional[float] = None,
                   exit_handler: Optional[Callable[['Task', Exception], None]] = None) -> None:
@@ -245,21 +250,38 @@ class Benchmark:
         self._max_memory = 0
         self._nanos = 0
 
+        self._task_completed_event = Event()
+        self._timeout_occurred = False
+
     def run(self, timeout: Optional[float] = None) -> None:
         """Runs the benchmark."""
-        self.task.run_async(timeout=timeout)
-
-        while self.task.pid is None:
-            pass
+        thread = Thread(target=self._watchdog, args=[timeout])
+        thread.daemon = True
+        thread.start()
 
         start = perf_counter_ns()
+        self.task.run(wait=False)
         result = os.wait4(self.task.pid, os.WEXITED)[2]
+        self._task_completed_event.set()
 
         self._nanos = perf_counter_ns() - start
         self._max_memory = result.ru_maxrss
 
+        self.task.wait(timeout=timeout)
+
+        if self._timeout_occurred:
+            raise sp.TimeoutExpired(self._process.args, timeout,
+                                    output=self.task.stdout, stderr=self.task.stderr)
+
     def __getattr__(self, item):
         return getattr(self._task, item)
+
+    # Private
+
+    def _watchdog(self, timeout: float) -> None:
+        if not self._task_completed_event.wait(timeout=timeout):
+            self._timeout_occurred = True
+            self.task.send_signal(signal.SIGKILL)
 
 
 class EnergyProfiler:
@@ -304,7 +326,7 @@ class EnergyProfiler:
             thread.daemon = True
             thread.start()
 
-        self._task.run(timeout)
+        self._task.run(timeout=timeout)
         self._stop_energy_profiler()
         self._energy_task_event.wait(timeout=self.sampling_interval)
 
