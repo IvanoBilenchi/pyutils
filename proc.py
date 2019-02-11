@@ -195,6 +195,15 @@ class Task:
 class Jar(Task):
     """Spawn jars and easily capture their output."""
 
+    @classmethod
+    def spawn(cls, jar: str,
+              jar_args: Optional[List[str]] = None,
+              vm_opts: Optional[List[str]] = None,
+              output_action: OutputAction = OutputAction.STORE) -> 'Jar':
+        task = cls(jar, jar_args=jar_args, vm_opts=vm_opts, output_action=output_action)
+        task.run()
+        return task
+
     def __init__(self,
                  jar: str,
                  jar_args: Optional[List[str]] = None,
