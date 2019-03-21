@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 import signal
 import subprocess as sp
@@ -270,11 +271,14 @@ class Benchmark:
 
         start = perf_counter_ns()
         self.task.run(wait=False)
-        result = os.wait4(self.task.pid, os.WEXITED)[2]
+        result = os.wait4(self.task.pid, 0)[2]
         self._task_completed_event.set()
 
         self._nanos = perf_counter_ns() - start
         self._max_memory = result.ru_maxrss
+
+        if platform.system() != 'Darwin':
+            self._max_memory *= 1024
 
         self.task.wait(timeout=timeout)
 
