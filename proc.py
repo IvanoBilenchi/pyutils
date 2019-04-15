@@ -86,8 +86,8 @@ class Task:
         self._args = args
         self._output_action = output_action
 
-        self._completed: sp.CompletedProcess = None
-        self._process: sp.Popen = None
+        self._completed: Optional[sp.CompletedProcess] = None
+        self._process: Optional[sp.Popen] = None
 
     def run(self, wait: bool = True, timeout: Optional[float] = None) -> None:
         """Runs the task."""
@@ -316,7 +316,7 @@ class EnergyProfiler:
         self.sampling_interval = sampling_interval if sampling_interval > 0 else 1000
 
         self._task = task
-        self._energy_task: sp.Popen = None
+        self._energy_task: Optional[sp.Popen] = None
         self._energy_task_event: Event = Event()
         self._dead_task_score: float = 0.0
 

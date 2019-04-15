@@ -1,4 +1,4 @@
-from typing import TextIO
+from typing import Optional, TextIO
 
 from . import echo, exc, fileutils
 
@@ -22,7 +22,7 @@ class Logger:
         self.indent_string = '    '
 
         self.__file_path = file_path
-        self.__file: TextIO = None
+        self.__file: Optional[TextIO] = None
         self.__should_indent = False
 
     def __enter__(self):
