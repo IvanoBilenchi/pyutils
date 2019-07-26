@@ -28,6 +28,15 @@ def get_children_pids(pid: int, recursive: bool = False) -> Optional[List[int]]:
         return None
 
 
+def get_pid_tree(pid: int) -> List[int]:
+    """
+    Returns a list containing the specified PID and PIDs of its successors, recursively.
+    If a process with the specified PID cannot be found, returns an empty list.
+    """
+    children_pids = get_children_pids(pid, recursive=True)
+    return [] if children_pids is None else [pid] + children_pids
+
+
 def find_pids(pattern: str, regex: bool = False,
               match_arguments: bool = False, only_first: bool = False) -> List[int]:
     """Find PIDs by name or regex."""

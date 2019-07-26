@@ -9,7 +9,7 @@ from threading import Event, Thread
 from pyutils import exc
 from pyutils.io import fileutils
 from .task import Task
-from .util import get_children_pids, find_executable
+from .util import get_pid_tree, find_executable
 
 
 class Benchmark:
@@ -83,32 +83,81 @@ class Benchmark:
             self.task.send_signal(signal.SIGKILL)
 
 
+class EnergyProbe:
+    """
+    Abstract class representing an object that can be polled
+    in order to retrieve power samples for a specific task.
+    """
+
+    def start(self, task: Task) -> None:
+        """Override this method by preparing the probe for sampling."""
+        raise NotImplementedError
+
+    def poll(self) -> None:
+        """
+        Compute and store a single power sample.
+        Note that a sample must be (a proxy of) the average power usage
+        since this method was previously called.
+        """
+        raise NotImplementedError
+
+    def stop(self) -> List[float]:
+        """Stop probing and return the collected samples."""
+        raise NotImplementedError
+
+
 class EnergyProfiler:
     """Run an energy impact profiler for a given task."""
 
     @property
-    def mean(self) -> float:
-        n_samples = len(self.samples)
-        return sum(self.samples) / n_samples if n_samples > 0 else 0.0
-
-    @property
     def score(self) -> float:
+        """Returns a score representing a proxy of the energy used by the profiled process."""
         return sum(self.samples) * self.sampling_interval / 1000.0
 
-    def __init__(self, task: Task, sampling_interval: int = 1000) -> None:
-        exc.raise_if_none(task=task)
+    def __init__(self, task: Task, probe: EnergyProbe, sampling_interval: int = 1000) -> None:
+        exc.raise_if_none(task=task, probe=probe)
 
         self.samples: List[float] = []
         self.sampling_interval = sampling_interval if sampling_interval > 0 else 1000
 
         self._task = task
+        self._probe = probe
+
+    def run(self, timeout: Optional[float] = None) -> None:
+        """Runs the profiler."""
+        self._probe.start(self._task)
+
+        thread = Thread(target=self._poll_probe)
+        thread.daemon = True
+        thread.start()
+
+        self._task.run(timeout=timeout)
+        self._probe.stop()
+
+    def __getattr__(self, item):
+        return getattr(self._task, item)
+
+    # Private
+
+    def _poll_probe(self) -> None:
+        while self._task.exit_code is None:
+            sleep(self.sampling_interval / 1000.0)
+            self._probe.poll()
+
+
+class PowermetricsProbe(EnergyProbe):
+    """EnergyProbe implementation using powermetrics on macOS."""
+
+    def __init__(self):
+        self._task: Optional[Task] = None
+        self._samples: List[float] = []
         self._energy_task: Optional[sp.Popen] = None
         self._energy_task_event: Event = Event()
         self._dead_task_score: float = 0.0
 
-    def run(self, timeout: Optional[float] = None) -> None:
-        """Runs the profiler."""
+    def start(self, task: Task) -> None:
         exc.raise_if_not_root()
+        self._task = task
 
         args = [
             find_executable('powermetrics'),
@@ -120,21 +169,27 @@ class EnergyProfiler:
         self._energy_task = sp.Popen(args, stdout=sp.PIPE, stderr=sp.DEVNULL,
                                      universal_newlines=True)
 
-        for thread in [Thread(target=self._parse_energy_profiler),
-                       Thread(target=self._poll_energy_profiler)]:
-            thread.daemon = True
-            thread.start()
+        thread = Thread(target=self._parse_profiler)
+        thread.daemon = True
+        thread.start()
 
-        self._task.run(timeout=timeout)
-        self._stop_energy_profiler()
-        self._energy_task_event.wait(timeout=self.sampling_interval)
+    def poll(self) -> None:
+        self._energy_task.send_signal(signal.SIGINFO)
 
-    def __getattr__(self, item):
-        return getattr(self._task, item)
+    def stop(self) -> List[float]:
+        self._energy_task.send_signal(signal.SIGINFO)
+        sleep(0.1)
+        self._energy_task.send_signal(signal.SIGTERM)
+        self._energy_task_event.wait()
+        return self._samples
 
     # Private
 
-    def _parse_energy_profiler(self) -> None:
+    def _mean(self) -> float:
+        n_samples = len(self._samples)
+        return sum(self._samples) / n_samples if n_samples > 0 else 0.0
+
+    def _parse_profiler(self) -> None:
         self._energy_task_event.clear()
 
         task_lines = []
@@ -156,12 +211,12 @@ class EnergyProfiler:
         self._energy_task.communicate()
         self._energy_task_event.set()
 
-    def _parse_tasks(self, tasks: List[str]) -> None:
-        pids = self._get_task_pids()
+    def _parse_tasks(self, task_lines: List[str]) -> None:
+        pids = get_pid_tree(self._task.pid)
         score = None
         dead_task_score = None
 
-        for line in tasks:
+        for line in task_lines:
             components = line.strip().split()
 
             try:
@@ -171,14 +226,15 @@ class EnergyProfiler:
                     # Estimate based on DEAD_TASKS.
                     dead_task_score = float(components[-1])
 
-                    n_samples = len(self.samples)
+                    n_samples = len(self._samples)
 
-                    if n_samples > 1:
-                        mean = self.mean
+                    if n_samples <= 1:
+                        continue
 
-                        # Discard DEAD_TASKS outliers.
-                        if dead_task_score > n_samples * mean / 2.0:
-                            dead_task_score = mean
+                    # Discard DEAD_TASKS outliers.
+                    mean = self._mean()
+                    if dead_task_score > n_samples * mean / 2.0:
+                        dead_task_score = mean
                 else:
                     # Sum sample if pid belongs to the profiled process.
                     pids.remove(pid)
@@ -191,19 +247,4 @@ class EnergyProfiler:
         score = dead_task_score if score is None else score
 
         if score is not None:
-            self.samples.append(score)
-
-    def _poll_energy_profiler(self) -> None:
-        while self._task.exit_code is None:
-            sleep(self.sampling_interval / 1000.0)
-            self._energy_task.send_signal(signal.SIGINFO)
-
-    def _stop_energy_profiler(self) -> None:
-        self._energy_task.send_signal(signal.SIGINFO)
-        sleep(0.1)
-        self._energy_task.send_signal(signal.SIGTERM)
-
-    def _get_task_pids(self) -> List[int]:
-        pid = self._task.pid
-        children_pids = get_children_pids(pid, recursive=True)
-        return [] if children_pids is None else [pid] + children_pids
+            self._samples.append(score)
