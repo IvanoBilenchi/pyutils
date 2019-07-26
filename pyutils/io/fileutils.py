@@ -3,7 +3,7 @@ import mmap
 import os
 import shutil
 
-from . import exc
+from pyutils import exc
 
 
 def contains(file_path: str, string: str) -> bool:

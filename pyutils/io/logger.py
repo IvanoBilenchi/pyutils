@@ -1,6 +1,7 @@
 from typing import Optional, TextIO
 
-from . import echo, exc, fileutils
+from pyutils import exc
+from . import echo, fileutils
 
 
 class Logger:

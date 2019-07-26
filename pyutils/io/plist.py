@@ -14,7 +14,7 @@ from Foundation import (
 from enum import Enum
 from typing import Dict
 
-from . import exc
+from pyutils import exc
 
 
 # Public classes
