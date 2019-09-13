@@ -132,7 +132,7 @@ class EnergyProfiler:
         thread.start()
 
         self._task.run(timeout=timeout)
-        self._probe.stop()
+        self.samples = self._probe.stop()
 
     def __getattr__(self, item):
         return getattr(self._task, item)
@@ -158,6 +158,7 @@ class PowermetricsProbe(EnergyProbe):
     def start(self, task: Task) -> None:
         exc.raise_if_not_root()
         self._task = task
+        self._samples = []
 
         args = [
             find_executable('powermetrics'),
