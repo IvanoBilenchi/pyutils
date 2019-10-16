@@ -90,19 +90,31 @@ class EnergyProbe:
     """
 
     def start(self, task: Task) -> None:
-        """Override this method by preparing the probe for sampling."""
+        """
+        Called by the energy profiler once it starts acquiring samples.
+        This is the preferred place to reset the probe’s internal state and
+        to initialize any needed resources.
+
+        :param task: Profiled task.
+        """
         raise NotImplementedError
 
     def poll(self) -> None:
         """
-        Compute and store a single power sample.
-        Note that a sample must be (a proxy of) the average power usage
-        since this method was previously called.
+        Called periodically by the energy profiler. The probe must compute and store
+        a single sample, which should be proportional to the average power usage
+        in the period between the current and the previous call to this method.
         """
         raise NotImplementedError
 
     def stop(self) -> List[float]:
-        """Stop probing and return the collected samples."""
+        """
+        Called by the energy profiler at the end of the task.
+        The probe should stop acquiring samples, and it must return a list
+        of all the samples it acquired since :meth:`start` was called.
+
+        :return: List of acquired samples.
+        """
         raise NotImplementedError
 
 
