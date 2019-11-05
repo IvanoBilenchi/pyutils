@@ -39,6 +39,10 @@ class Task:
         return self._output_action
 
     @property
+    def input_path(self) -> Optional[str]:
+        return self._input_path
+
+    @property
     def pid(self) -> Optional[int]:
         return self._process.pid if self._process else None
 
@@ -57,20 +61,23 @@ class Task:
     @classmethod
     def spawn(cls, executable: str,
               args: Optional[List[str]] = None,
-              output_action: OutputAction = OutputAction.STORE) -> 'Task':
+              output_action: OutputAction = OutputAction.STORE,
+              input_path: Optional[str] = None) -> 'Task':
         """Convenience factory method: builds, runs and returns a task."""
-        task = cls(executable, args=args, output_action=output_action)
+        task = cls(executable, args=args, output_action=output_action, input_path=input_path)
         task.run()
         return task
 
     @classmethod
     def copying(cls, task: 'Task') -> 'Task':
-        return cls(task.path, args=task.args, output_action=task.output_action)
+        return cls(task.path, args=task.args, output_action=task.output_action,
+                   input_path=task.input_path)
 
     def __init__(self,
                  executable: str,
                  args: Optional[List[str]] = None,
-                 output_action: OutputAction = OutputAction.STORE) -> None:
+                 output_action: OutputAction = OutputAction.STORE,
+                 input_path: Optional[str] = None) -> None:
         exc.raise_if_falsy(executable=executable, output_action=output_action)
 
         if not os.path.isabs(executable):
@@ -79,12 +86,15 @@ class Task:
         self._path = executable
         self._args = args
         self._output_action = output_action
+        self._input_path = input_path
 
         self._completed: Optional[sp.CompletedProcess] = None
         self._process: Optional[sp.Popen] = None
 
     def run(self, wait: bool = True, timeout: Optional[float] = None) -> None:
-        """Runs the task."""
+        """Run the task."""
+        stdin = None
+
         try:
             handle = None
 
@@ -93,7 +103,10 @@ class Task:
             elif self.output_action == OutputAction.STORE:
                 handle = sp.PIPE
 
-            self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle,
+            if self.input_path:
+                stdin = open(self.input_path)
+
+            self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle, stdin=stdin,
                                      universal_newlines=True)
 
             if wait:
@@ -101,6 +114,8 @@ class Task:
 
         except Exception as e:
             try:
+                if stdin:
+                    stdin.close()
                 exc.re_raise_new_message(e, 'Failed to call process: {}'.format(self.path))
             except Exception:
                 raise e
@@ -129,12 +144,13 @@ class Task:
 
     def run_async(self, timeout: Optional[float] = None,
                   exit_handler: Optional[Callable[['Task', Exception], None]] = None) -> None:
-        """Runs the task asynchronously."""
+        """Run the task asynchronously."""
         bg_proc = Thread(target=self._run_async_thread, args=[timeout, exit_handler])
         bg_proc.daemon = True
         bg_proc.start()
 
     def send_signal(self, sig: int = signal.SIGKILL, children: bool = False) -> None:
+        """Send a signal to the task."""
         if self._process and self._process.pid is not None:
             kill(self._process.pid, sig=sig, children=children)
 
@@ -194,8 +210,10 @@ class Jar(Task):
     def spawn(cls, jar: str,
               jar_args: Optional[List[str]] = None,
               vm_opts: Optional[List[str]] = None,
-              output_action: OutputAction = OutputAction.STORE) -> 'Jar':
-        task = cls(jar, jar_args=jar_args, vm_opts=vm_opts, output_action=output_action)
+              output_action: OutputAction = OutputAction.STORE,
+              input_path: Optional[str] = None) -> 'Jar':
+        task = cls(jar, jar_args=jar_args, vm_opts=vm_opts, output_action=output_action,
+                   input_path=input_path)
         task.run()
         return task
 
@@ -203,7 +221,8 @@ class Jar(Task):
                  jar: str,
                  jar_args: Optional[List[str]] = None,
                  vm_opts: Optional[List[str]] = None,
-                 output_action: OutputAction = OutputAction.STORE) -> None:
+                 output_action: OutputAction = OutputAction.STORE,
+                 input_path: Optional[str] = None) -> None:
 
         exc.raise_if_falsy(jar=jar, output_action=output_action)
 
@@ -217,4 +236,5 @@ class Jar(Task):
         if jar_args:
             args.extend(jar_args)
 
-        super(Jar, self).__init__(executable='java', args=args, output_action=output_action)
+        super(Jar, self).__init__(executable='java', args=args, output_action=output_action,
+                                  input_path=input_path)
