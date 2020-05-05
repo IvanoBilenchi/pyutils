@@ -20,21 +20,32 @@ def find_executable(executable: str, path: Optional[str] = None) -> str:
     return exe_path
 
 
-def get_children_pids(pid: int, recursive: bool = False) -> Optional[List[int]]:
-    """Retrieves the PIDs of the children of the process with the specified PID."""
+def get_children_pids(pid: int, recursive: bool = False,
+                      include_tids: bool = False) -> Optional[List[int]]:
+    """Retrieves children PIDs and optionally TIDs of the process with the specified PID."""
     try:
-        return [p.pid for p in ps.Process(pid).children(recursive=recursive)]
+        process = ps.Process(pid)
+        pids = [t.id for t in process.threads()] if include_tids else []
+
+        for p in process.children(recursive=recursive):
+            pids.append(p.pid)
+
+            if include_tids:
+                pids.extend(t.id for t in p.threads())
+
+        return pids
     except ps.NoSuchProcess:
         return None
 
 
-def get_pid_tree(pid: int) -> List[int]:
+def get_pid_tree(pid: int, include_tids: bool = False) -> List[int]:
     """
-    Returns a list containing the specified PID and PIDs of its successors, recursively.
+    Returns a list containing the specified PID and those of its children,
+    optionally including TIDs, recursively.
     If a process with the specified PID cannot be found, returns an empty list.
     """
-    children_pids = get_children_pids(pid, recursive=True)
-    return [] if children_pids is None else [pid] + children_pids
+    pids = get_children_pids(pid, recursive=True, include_tids=include_tids)
+    return [] if pids is None else [pid] + pids
 
 
 def find_pids(pattern: str, regex: bool = False,

@@ -79,10 +79,17 @@ def remove(path: str) -> None:
             raise
 
 
-def remove_dir(path: str) -> None:
-    """Removes the dir at the specified path, if empty. Does nothing if the file does not exist."""
+def remove_dir(path: str, recursive: bool = False) -> None:
+    """
+    Removes the dir at the specified path.
+    If recursive is True, also deletes its contents, otherwise the dir must be empty.
+    Does nothing if the file does not exist.
+    """
     try:
-        os.rmdir(path)
+        if recursive:
+            shutil.rmtree(path)
+        else:
+            os.rmdir(path)
     except OSError as e:
         if e.errno != errno.ENOENT:
             raise
