@@ -1,15 +1,19 @@
+import atexit
+import glob
 import os
 import platform
+import re
 import signal
 import subprocess as sp
-from time import perf_counter_ns, sleep
-from typing import List, Optional
+import tempfile
 from threading import Event, Thread
+from time import perf_counter_ns, sleep
+from typing import List, Optional, Set
 
 from pyutils import exc
 from pyutils.io import fileutils
 from .task import Task
-from .util import get_pid_tree, find_executable
+from .util import find_executable, get_pid_tree
 
 
 class Benchmark:
@@ -261,3 +265,97 @@ class PowermetricsProbe(EnergyProbe):
 
         if score is not None:
             self._samples.append(score)
+
+
+class PowertopProbe(EnergyProbe):
+    """EnergyProbe implementation using powertop on GNU/Linux."""
+
+    _PID_RE = re.compile(r';\[PID (\d+)\].*;\s*([\d.]+)\s([mu]?W)\s*$')
+    _REPORT_FILENAME = 'report'
+
+    def __init__(self, polling_time: float = 1.0):
+        self._task: Optional[Task] = None
+        self._polling_time = polling_time
+        self._energy_task: Optional[sp.Popen] = None
+        self._pids: Set[int] = set()
+        self._report_directory = tempfile.mkdtemp(prefix='evowluator_')
+
+    def start(self, task: Task) -> None:
+        exc.raise_if_not_root()
+
+        self._pids = set()
+        atexit.register(self._force_close)
+        fileutils.create_dir(self._report_directory)
+
+        args = [
+            find_executable('powertop'),
+            '-t', str(self._polling_time),
+            '-i', str(2 ** 63 - 1),
+            '-C{}'.format(os.path.join(self._report_directory, self._REPORT_FILENAME))
+        ]
+
+        self._task = task
+        self._energy_task = sp.Popen(args, stdout=sp.DEVNULL, stderr=sp.DEVNULL,
+                                     universal_newlines=True)
+
+        while not self._reports():
+            pass
+
+    def stop(self) -> List[float]:
+        samples = []
+
+        for report in self._reports():
+            if os.path.getsize(report) == 0:
+                while os.path.getsize(report) == 0:
+                    pass
+                self._energy_task.send_signal(signal.SIGINT)
+
+            samples.append(self._read_report(report))
+        fileutils.remove_dir(self._report_directory, recursive=True)
+
+        return samples
+
+    def poll(self) -> None:
+        for tid in get_pid_tree(self._task.pid, include_tids=True):
+            self._pids.add(tid)
+
+    # Private
+
+    def _read_report(self, filename: str) -> float:
+        sample = 0.0
+        header_found = False
+        header = "Overview of Software Power Consumers"
+
+        with open(filename, 'r') as file:
+            for line in file:
+
+                if not header_found and header not in line:
+                    continue
+                header_found = True
+
+                res = self._PID_RE.search(line)
+                if res and int(res.group(1)) in self._pids:
+                    sample += self._parse_value(res.group(2), res.group(3))
+
+        return sample
+
+    def _parse_value(self, value: str, unit: str) -> float:
+        try:
+            value = float(value)
+        except ValueError:
+            return 0.0
+
+        if unit == 'uW':
+            value /= 1000000.0
+        elif unit == 'mW':
+            value /= 1000.0
+
+        return value
+
+    def _reports(self) -> List[str]:
+        return glob.glob(os.path.join(self._report_directory, self._REPORT_FILENAME + "*"))
+
+    def _force_close(self) -> None:
+        if self._energy_task:
+            self._energy_task.send_signal(signal.SIGINT)
+        fileutils.remove_dir(self._report_directory, recursive=True)
