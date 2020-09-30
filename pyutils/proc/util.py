@@ -3,8 +3,6 @@ import signal
 from distutils import spawn
 from typing import List, Optional
 
-import psutil as ps
-
 from pyutils import exc
 from pyutils.decorators import memoized
 
@@ -23,6 +21,8 @@ def find_executable(executable: str, path: Optional[str] = None) -> str:
 def get_children_pids(pid: int, recursive: bool = False,
                       include_tids: bool = False) -> Optional[List[int]]:
     """Retrieves children PIDs and optionally TIDs of the process with the specified PID."""
+    ps = _import_psutil()
+
     try:
         process = ps.Process(pid)
         pids = [t.id for t in process.threads()] if include_tids else []
@@ -51,6 +51,8 @@ def get_pid_tree(pid: int, include_tids: bool = False) -> List[int]:
 def find_pids(pattern: str, regex: bool = False,
               match_arguments: bool = False, only_first: bool = False) -> List[int]:
     """Find PIDs by name or regex."""
+    ps = _import_psutil()
+
     c_regex = re.compile(pattern) if regex else None
     pids = []
 
@@ -73,6 +75,8 @@ def find_pids(pattern: str, regex: bool = False,
 
 def kill(pid: int, sig: int = signal.SIGKILL, children: bool = False) -> None:
     """Sends a signal to the specified process and (optionally) to its children."""
+    ps = _import_psutil()
+
     proc = ps.Process(pid)
 
     if children:
@@ -110,3 +114,10 @@ def pkill(pattern: str, sig: int = signal.SIGKILL, match_arguments: bool = True)
         kill(pid, sig=sig)
 
     return found
+
+
+# noinspection PyPackageRequirements
+def _import_psutil():
+    """Convenience function for optional psutil import."""
+    import psutil as ps
+    return ps

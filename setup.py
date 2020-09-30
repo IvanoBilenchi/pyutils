@@ -6,6 +6,5 @@ setup(name='cli-pyutils',
       author='Ivano Bilenchi',
       author_email='ivanobilenchi@gmail.com',
       url='https://github.com/IvanoBilenchi/pyutils',
-      packages=find_packages(),
-      install_requires=['psutil']
+      packages=find_packages()
       )
