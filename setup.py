@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-from distutils.core import setup
+from setuptools import find_packages, setup
 
 setup(name='cli-pyutils',
       version='0.1',
@@ -8,5 +6,6 @@ setup(name='cli-pyutils',
       author='Ivano Bilenchi',
       author_email='ivanobilenchi@gmail.com',
       url='https://github.com/IvanoBilenchi/pyutils',
-      packages=['pyutils', 'pyutils.io', 'pyutils.proc'],
+      packages=find_packages(),
+      install_requires=['psutil']
       )
