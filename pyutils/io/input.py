@@ -75,6 +75,18 @@ def get_int(prompt: Optional[str] = None,
     return input_int
 
 
+def get_bool(prompt: Optional[str] = None, default: bool = False) -> bool:
+    """Gets a boolean response from the command line.
+
+    :param prompt: Input prompt.
+    :param default: Default value used if no characters are typed.
+
+    :return: Input boolean.
+    """
+    input_str = input(_prompt_from_message(prompt, default='y' if default else 'n'))
+    return input_str.lower().startswith('y')
+
+
 # Private functions
 
 
