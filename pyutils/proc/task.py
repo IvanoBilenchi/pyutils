@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
 import signal
 import subprocess as sp
-from enum import Enum
+from enum import Enum, auto
 from threading import Thread
 from typing import Callable, List, Optional
 
@@ -14,9 +16,9 @@ from .util import find_executable, kill
 
 class OutputAction(Enum):
     """Output actions."""
-    PRINT = 0
-    DISCARD = 1
-    STORE = 2
+    PRINT = auto()
+    DISCARD = auto()
+    STORE = auto()
 
 
 class Task:
@@ -24,23 +26,7 @@ class Task:
 
     @property
     def name(self) -> str:
-        return os.path.basename(self._path)
-
-    @property
-    def path(self) -> str:
-        return self._path
-
-    @property
-    def args(self) -> Optional[List[str]]:
-        return self._args
-
-    @property
-    def output_action(self) -> OutputAction:
-        return self._output_action
-
-    @property
-    def input_path(self) -> Optional[str]:
-        return self._input_path
+        return os.path.basename(self.path)
 
     @property
     def pid(self) -> Optional[int]:
@@ -62,16 +48,23 @@ class Task:
     def spawn(cls, executable: str,
               args: Optional[List[str]] = None,
               output_action: OutputAction = OutputAction.STORE,
-              input_path: Optional[str] = None) -> 'Task':
+              input_path: Optional[str] = None) -> Task:
         """Convenience factory method: builds, runs and returns a task."""
         task = cls(executable, args=args, output_action=output_action, input_path=input_path)
         task.run()
         return task
 
     @classmethod
-    def copying(cls, task: 'Task') -> 'Task':
+    def copying(cls, task: Task) -> Task:
         return cls(task.path, args=task.args, output_action=task.output_action,
                    input_path=task.input_path)
+
+    @classmethod
+    def jar(cls, jar: str, jar_args: Optional[List[str]] = None,
+            jvm_opts: Optional[List[str]] = None, output_action: OutputAction = OutputAction.STORE,
+            input_path: Optional[str] = None) -> Task:
+        return cls('java', java_args(jar, jar_args=jar_args, jvm_opts=jvm_opts),
+                   output_action=output_action, input_path=input_path)
 
     def __init__(self,
                  executable: str,
@@ -83,10 +76,10 @@ class Task:
         if not os.path.isabs(executable):
             executable = find_executable(executable)
 
-        self._path = executable
-        self._args = args
-        self._output_action = output_action
-        self._input_path = input_path
+        self.path = executable
+        self.args = args
+        self.output_action = output_action
+        self.input_path = input_path
 
         self._completed: Optional[sp.CompletedProcess] = None
         self._process: Optional[sp.Popen] = None
@@ -143,7 +136,7 @@ class Task:
         self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
 
     def run_async(self, timeout: Optional[float] = None,
-                  exit_handler: Optional[Callable[['Task', Exception], None]] = None) -> None:
+                  exit_handler: Optional[Callable[[Task, Exception], None]] = None) -> None:
         """Run the task asynchronously."""
         bg_proc = Thread(target=self._run_async_thread, args=[timeout, exit_handler])
         bg_proc.daemon = True
@@ -191,7 +184,7 @@ class Task:
         return args
 
     def _run_async_thread(self, timeout: Optional[float],
-                          exit_handler: Optional[Callable[['Task', Exception], None]]) -> None:
+                          exit_handler: Optional[Callable[[Task, Exception], None]]) -> None:
         err = None
 
         try:
@@ -203,38 +196,24 @@ class Task:
                 exit_handler(self, err)
 
 
-class Jar(Task):
-    """Spawn jars and easily capture their output."""
+def java_args(jar: str, jar_args: Optional[List[str]] = None,
+              jvm_opts: Optional[List[str]] = None) -> List[str]:
+    """
+    Returns the argument list to pass to the JVM in order to launch the given Jar.
 
-    @classmethod
-    def spawn(cls, jar: str,
-              jar_args: Optional[List[str]] = None,
-              vm_opts: Optional[List[str]] = None,
-              output_action: OutputAction = OutputAction.STORE,
-              input_path: Optional[str] = None) -> 'Jar':
-        task = cls(jar, jar_args=jar_args, vm_opts=vm_opts, output_action=output_action,
-                   input_path=input_path)
-        task.run()
-        return task
+    :param jar: Path to the jar file.
+    :param jar_args: Args to pass to the jar.
+    :param jvm_opts: Args to pass to the JVM.
+    :return: Argument list.
+    """
+    args = []
 
-    def __init__(self,
-                 jar: str,
-                 jar_args: Optional[List[str]] = None,
-                 vm_opts: Optional[List[str]] = None,
-                 output_action: OutputAction = OutputAction.STORE,
-                 input_path: Optional[str] = None) -> None:
+    if jvm_opts:
+        args.extend(jvm_opts)
 
-        exc.raise_if_falsy(jar=jar, output_action=output_action)
+    args.extend(('-jar', jar))
 
-        args = []
+    if jar_args:
+        args.extend(jar_args)
 
-        if vm_opts:
-            args.extend(vm_opts)
-
-        args.extend(['-jar', jar])
-
-        if jar_args:
-            args.extend(jar_args)
-
-        super(Jar, self).__init__(executable='java', args=args, output_action=output_action,
-                                  input_path=input_path)
+    return args
