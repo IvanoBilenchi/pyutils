@@ -270,7 +270,7 @@ class PowermetricsProbe(EnergyProbe):
 class PowertopProbe(EnergyProbe):
     """EnergyProbe implementation using powertop on GNU/Linux."""
 
-    _PID_RE = re.compile(r';\[PID (\d+)\].*;\s*([\d.]+)\s([mu]?W)\s*$')
+    _PID_RE = re.compile(r';\[PID (\d+)].*;\s*([\d.]+)\s([mu]?W)\s*$')
     _REPORT_FILENAME = 'report'
 
     def __init__(self, polling_time: float = 1.0):
