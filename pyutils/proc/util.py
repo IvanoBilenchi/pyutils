@@ -1,14 +1,16 @@
+from __future__ import annotations
+
 import re
 import signal
 from distutils import spawn
-from typing import List, Optional
+from typing import List
 
 from pyutils import exc
 from pyutils.decorators import memoized
 
 
 @memoized
-def find_executable(executable: str, path: Optional[str] = None) -> str:
+def find_executable(executable: str, path: str | None = None) -> str:
     """Try to find 'executable' in the directories listed in 'path'."""
     exe_path = spawn.find_executable(executable, path)
 
@@ -19,7 +21,7 @@ def find_executable(executable: str, path: Optional[str] = None) -> str:
 
 
 def get_children_pids(pid: int, recursive: bool = False,
-                      include_tids: bool = False) -> Optional[List[int]]:
+                      include_tids: bool = False) -> List[int] | None:
     """Retrieves children PIDs and optionally TIDs of the process with the specified PID."""
     ps = _import_psutil()
 

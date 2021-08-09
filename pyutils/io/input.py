@@ -1,4 +1,6 @@
-from typing import Any, Callable, Optional
+from __future__ import annotations
+
+from typing import Any, Callable
 
 from . import echo
 
@@ -6,11 +8,11 @@ from . import echo
 # Public functions
 
 
-def get_str(prompt: Optional[str] = None,
-            min_len: Optional[int] = None,
-            max_len: Optional[int] = None,
-            condition: Optional[Callable[[str], bool]] = None,
-            default: Optional[str] = None) -> str:
+def get_str(prompt: str | None = None,
+            min_len: int | None = None,
+            max_len: int | None = None,
+            condition: Callable[[str], bool] | None = None,
+            default: str | None = None) -> str:
     """Gets a string from the command line. Trims leading and trailing whitespace.
 
     :param prompt: Input prompt.
@@ -38,11 +40,11 @@ def get_str(prompt: Optional[str] = None,
     return input_str
 
 
-def get_int(prompt: Optional[str] = None,
-            min_value: Optional[int] = None,
-            max_value: Optional[int] = None,
-            condition: Optional[Callable[[int], bool]] = None,
-            default: Optional[int] = None) -> int:
+def get_int(prompt: str | None = None,
+            min_value: int | None = None,
+            max_value: int | None = None,
+            condition: Callable[[int], bool] | None = None,
+            default: int | None = None) -> int:
     """Gets an int from the command line.
 
     :param prompt: Input prompt.
@@ -75,7 +77,7 @@ def get_int(prompt: Optional[str] = None,
     return input_int
 
 
-def get_bool(prompt: Optional[str] = None, default: bool = False) -> bool:
+def get_bool(prompt: str | None = None, default: bool = False) -> bool:
     """Gets a boolean response from the command line.
 
     :param prompt: Input prompt.
@@ -90,7 +92,7 @@ def get_bool(prompt: Optional[str] = None, default: bool = False) -> bool:
 # Private functions
 
 
-def _prompt_from_message(message: Optional[str] = None, default: Optional[str] = None) -> str:
+def _prompt_from_message(message: str | None = None, default: str | None = None) -> str:
     """Returns an input prompt."""
     if not message:
         return ''

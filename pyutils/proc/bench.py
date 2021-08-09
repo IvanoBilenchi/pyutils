@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import atexit
 import glob
 import os
@@ -8,7 +10,7 @@ import subprocess as sp
 import tempfile
 from threading import Event, Thread
 from time import perf_counter_ns, sleep
-from typing import List, Optional, Set
+from typing import List, Set
 
 from pyutils import exc
 from pyutils.io import fileutils
@@ -53,7 +55,7 @@ class Benchmark:
         self._task_completed_event = Event()
         self._timeout_occurred = False
 
-    def run(self, timeout: Optional[float] = None) -> None:
+    def run(self, timeout: float | None = None) -> None:
         """Runs the benchmark."""
         thread = Thread(target=self._watchdog, args=[timeout])
         thread.daemon = True
@@ -139,7 +141,7 @@ class EnergyProfiler:
         self._task = task
         self._probe = probe
 
-    def run(self, timeout: Optional[float] = None) -> None:
+    def run(self, timeout: float | None = None) -> None:
         """Runs the profiler."""
         self._probe.start(self._task)
 
@@ -165,9 +167,9 @@ class PowermetricsProbe(EnergyProbe):
     """EnergyProbe implementation using powermetrics on macOS."""
 
     def __init__(self):
-        self._task: Optional[Task] = None
+        self._task: Task | None = None
         self._samples: List[float] = []
-        self._energy_task: Optional[sp.Popen] = None
+        self._energy_task: sp.Popen | None = None
         self._energy_task_event: Event = Event()
         self._dead_task_score: float = 0.0
 
@@ -274,9 +276,9 @@ class PowertopProbe(EnergyProbe):
     _REPORT_FILENAME = 'report'
 
     def __init__(self, polling_time: float = 1.0):
-        self._task: Optional[Task] = None
-        self._polling_time = polling_time
-        self._energy_task: Optional[sp.Popen] = None
+        self._task: Task | None = None
+        self._polling_time: float = polling_time
+        self._energy_task: sp.Popen | None = None
         self._pids: Set[int] = set()
         self._report_directory = tempfile.mkdtemp(prefix='evowluator_')
 

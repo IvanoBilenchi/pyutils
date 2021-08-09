@@ -5,7 +5,7 @@ import signal
 import subprocess as sp
 from enum import Enum, auto
 from threading import Thread
-from typing import Callable, List, Optional
+from typing import Callable, List
 
 from pyutils import exc
 from .util import find_executable, kill
@@ -29,26 +29,26 @@ class Task:
         return os.path.basename(self.path)
 
     @property
-    def pid(self) -> Optional[int]:
+    def pid(self) -> int | None:
         return self._process.pid if self._process else None
 
     @property
-    def stdout(self) -> Optional[str]:
+    def stdout(self) -> str | None:
         return self._completed.stdout if self._completed else None
 
     @property
-    def stderr(self) -> Optional[str]:
+    def stderr(self) -> str | None:
         return self._completed.stderr if self._completed else None
 
     @property
-    def exit_code(self) -> Optional[int]:
+    def exit_code(self) -> int | None:
         return self._completed.returncode if self._completed else None
 
     @classmethod
     def spawn(cls, executable: str,
-              args: Optional[List[str]] = None,
+              args: List[str] | None = None,
               output_action: OutputAction = OutputAction.STORE,
-              input_path: Optional[str] = None) -> Task:
+              input_path: str | None = None) -> Task:
         """Convenience factory method: builds, runs and returns a task."""
         task = cls(executable, args=args, output_action=output_action, input_path=input_path)
         task.run()
@@ -60,17 +60,17 @@ class Task:
                    input_path=task.input_path)
 
     @classmethod
-    def jar(cls, jar: str, jar_args: Optional[List[str]] = None,
-            jvm_opts: Optional[List[str]] = None, output_action: OutputAction = OutputAction.STORE,
-            input_path: Optional[str] = None) -> Task:
+    def jar(cls, jar: str, jar_args: List[str] | None = None,
+            jvm_opts: List[str] | None = None, output_action: OutputAction = OutputAction.STORE,
+            input_path: str | None = None) -> Task:
         return cls('java', java_args(jar, jar_args=jar_args, jvm_opts=jvm_opts),
                    output_action=output_action, input_path=input_path)
 
     def __init__(self,
                  executable: str,
-                 args: Optional[List[str]] = None,
+                 args: List[str] | None = None,
                  output_action: OutputAction = OutputAction.STORE,
-                 input_path: Optional[str] = None) -> None:
+                 input_path: str | None = None) -> None:
         exc.raise_if_falsy(executable=executable, output_action=output_action)
 
         if not os.path.isabs(executable):
@@ -81,10 +81,10 @@ class Task:
         self.output_action = output_action
         self.input_path = input_path
 
-        self._completed: Optional[sp.CompletedProcess] = None
-        self._process: Optional[sp.Popen] = None
+        self._completed: sp.CompletedProcess | None = None
+        self._process: sp.Popen | None = None
 
-    def run(self, wait: bool = True, timeout: Optional[float] = None) -> None:
+    def run(self, wait: bool = True, timeout: float | None = None) -> None:
         """Run the task."""
         stdin = None
 
@@ -113,7 +113,7 @@ class Task:
             except Exception:
                 raise e
 
-    def wait(self, timeout: Optional[float] = None) -> None:
+    def wait(self, timeout: float | None = None) -> None:
         """Wait for the task to exit."""
         try:
             stdout, stderr = self._process.communicate(timeout=timeout)
@@ -135,8 +135,8 @@ class Task:
 
         self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
 
-    def run_async(self, timeout: Optional[float] = None,
-                  exit_handler: Optional[Callable[[Task, Exception], None]] = None) -> None:
+    def run_async(self, timeout: float | None = None,
+                  exit_handler: Callable[[Task, Exception], None] | None = None) -> None:
         """Run the task asynchronously."""
         bg_proc = Thread(target=self._run_async_thread, args=[timeout, exit_handler])
         bg_proc.daemon = True
@@ -147,7 +147,7 @@ class Task:
         if self._process and self._process.pid is not None:
             kill(self._process.pid, sig=sig, children=children)
 
-    def raise_if_failed(self, ensure_output: bool = False, message: Optional[str] = None) -> None:
+    def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> None:
         """Raise an IOError if the task returned with a non-zero exit code."""
         auto_msg = None
         should_raise = False
@@ -183,8 +183,8 @@ class Task:
 
         return args
 
-    def _run_async_thread(self, timeout: Optional[float],
-                          exit_handler: Optional[Callable[[Task, Exception], None]]) -> None:
+    def _run_async_thread(self, timeout: float | None,
+                          exit_handler: Callable[[Task, Exception], None] | None) -> None:
         err = None
 
         try:
@@ -196,8 +196,8 @@ class Task:
                 exit_handler(self, err)
 
 
-def java_args(jar: str, jar_args: Optional[List[str]] = None,
-              jvm_opts: Optional[List[str]] = None) -> List[str]:
+def java_args(jar: str, jar_args: List[str] | None = None,
+              jvm_opts: List[str] | None = None) -> List[str]:
     """
     Returns the argument list to pass to the JVM in order to launch the given Jar.
 

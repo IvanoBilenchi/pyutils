@@ -1,10 +1,12 @@
-from typing import Dict, Mapping, Optional
+from __future__ import annotations
+
+from typing import Dict, Mapping
 
 from . import exc
 
 
 def from_string(string: str, line_sep: str = '\n', value_sep: str = '=',
-                strip_chars: Optional[str] = None) -> Dict[str, str]:
+                strip_chars: str | None = None) -> Dict[str, str]:
     """Parses a string and returns a dictionary with the key/value pairs contained in it."""
     exc.raise_if_falsy(line_sep=line_sep, value_sep=value_sep)
     dictionary = {}
