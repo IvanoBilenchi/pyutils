@@ -55,7 +55,7 @@ class Benchmark:
         self._task_completed_event = Event()
         self._timeout_occurred = False
 
-    def run(self, timeout: float | None = None) -> None:
+    def run(self, timeout: float | None = None) -> Benchmark:
         """Runs the benchmark."""
         thread = Thread(target=self._watchdog, args=[timeout])
         thread.daemon = True
@@ -77,6 +77,8 @@ class Benchmark:
         if self._timeout_occurred:
             raise sp.TimeoutExpired(self._process.args, timeout,
                                     output=self.task.stdout, stderr=self.task.stderr)
+
+        return self
 
     def __getattr__(self, item):
         return getattr(self._task, item)
@@ -141,7 +143,7 @@ class EnergyProfiler:
         self._task = task
         self._probe = probe
 
-    def run(self, timeout: float | None = None) -> None:
+    def run(self, timeout: float | None = None) -> EnergyProfiler:
         """Runs the profiler."""
         self._probe.start(self._task)
 
@@ -151,6 +153,7 @@ class EnergyProfiler:
 
         self._task.run(timeout=timeout)
         self.samples = self._probe.stop()
+        return self
 
     def __getattr__(self, item):
         return getattr(self._task, item)

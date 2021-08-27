@@ -84,7 +84,7 @@ class Task:
         self._completed: sp.CompletedProcess | None = None
         self._process: sp.Popen | None = None
 
-    def run(self, wait: bool = True, timeout: float | None = None) -> None:
+    def run(self, wait: bool = True, timeout: float | None = None) -> Task:
         """Run the task."""
         stdin = None
 
@@ -113,7 +113,9 @@ class Task:
             except Exception:
                 raise e
 
-    def wait(self, timeout: float | None = None) -> None:
+        return self
+
+    def wait(self, timeout: float | None = None) -> Task:
         """Wait for the task to exit."""
         try:
             stdout, stderr = self._process.communicate(timeout=timeout)
@@ -134,20 +136,23 @@ class Task:
             stderr = stderr.strip()
 
         self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
+        return self
 
     def run_async(self, timeout: float | None = None,
-                  exit_handler: Callable[[Task, Exception], None] | None = None) -> None:
+                  exit_handler: Callable[[Task, Exception], None] | None = None) -> Task:
         """Run the task asynchronously."""
         bg_proc = Thread(target=self._run_async_thread, args=[timeout, exit_handler])
         bg_proc.daemon = True
         bg_proc.start()
+        return self
 
-    def send_signal(self, sig: int = signal.SIGKILL, children: bool = False) -> None:
+    def send_signal(self, sig: int = signal.SIGKILL, children: bool = False) -> Task:
         """Send a signal to the task."""
         if self._process and self._process.pid is not None:
             kill(self._process.pid, sig=sig, children=children)
+        return self
 
-    def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> None:
+    def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> Task:
         """Raise an IOError if the task returned with a non-zero exit code."""
         auto_msg = None
         should_raise = False
@@ -171,6 +176,8 @@ class Task:
                     err_lines.append(msg)
 
             raise IOError('\n'.join(err_lines))
+
+        return self
 
     # Protected methods
 
