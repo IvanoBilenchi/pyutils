@@ -36,7 +36,7 @@ def pretty(message: str, color: Color = None, bold: bool = False,
             attrs.append('1')
 
         if len(attrs) > 0:
-            msg = u'\x1b[{}m{}\x1b[0m'.format(';'.join(attrs), msg)
+            msg = u'\x1b' f'[{";".join(attrs)}m{msg}' u'\x1b[0m'
 
     if endl:
         print(msg, file=out_file)

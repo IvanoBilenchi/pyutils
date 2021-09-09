@@ -15,7 +15,7 @@ def find_executable(executable: str, path: str | None = None) -> str:
     exe_path = spawn.find_executable(executable, path)
 
     if not exe_path:
-        exc.raise_not_found(message='Could not find the {} executable.'.format(executable))
+        exc.raise_not_found(message=f'Could not find the {executable} executable')
 
     return exe_path
 

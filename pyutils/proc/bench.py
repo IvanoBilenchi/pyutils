@@ -296,7 +296,7 @@ class PowertopProbe(EnergyProbe):
             find_executable('powertop'),
             '-t', str(self._polling_time),
             '-i', str(2 ** 63 - 1),
-            '-C{}'.format(os.path.join(self._report_directory, self._REPORT_FILENAME))
+            f'-C{os.path.join(self._report_directory, self._REPORT_FILENAME)}'
         ]
 
         self._task = task

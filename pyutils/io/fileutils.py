@@ -12,7 +12,7 @@ def contains(file_path: str, string: str) -> bool:
 
     with open(file_path) as handle:
         m = mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ)
-        result = m.find(string) != -1
+        result = m.find(string.encode()) != -1
         m.close()
 
     return result
@@ -62,7 +62,7 @@ def human_readable_scale_and_unit(n_bytes: int) -> (int, str):
 def human_readable_bytes(n_bytes: int) -> str:
     """Returns the human readable size for the specified bytes."""
     scale, unit = human_readable_scale_and_unit(n_bytes)
-    return '{:.1f} {}'.format(n_bytes / scale, unit)
+    return f'{n_bytes / scale:.1f} {unit}'
 
 
 def human_readable_size(path: str) -> str:

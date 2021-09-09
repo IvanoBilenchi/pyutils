@@ -62,7 +62,7 @@ def raise_if_falsy(**kwargs: Any) -> None:
                 adj = 'zero'
             else:
                 adj = 'empty'
-            raise ValueError('Illegal {} value for: {}'.format(adj, key))
+            raise ValueError(f'Illegal {adj} value for: {key}')
 
 
 def raise_if_not_found(path: str, file_type: FileType = FileType.ANY) -> None:

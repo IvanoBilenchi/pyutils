@@ -100,7 +100,7 @@ def _prompt_from_message(message: str | None = None, default: str | None = None)
     prompt_parts = [message]
 
     if default is not None:
-        prompt_parts.append(' (default "{}")'.format(default))
+        prompt_parts.append(f' (default "{default}")')
 
     prompt_parts.append(': ')
 
@@ -111,7 +111,7 @@ def _print_invalid_value(value: Any = None) -> None:
     """Prints the "Invalid value" error message to stderr."""
     err_msg_components = ['Invalid value']
     if value is not None:
-        err_msg_components.append(' "{}"'.format(value))
+        err_msg_components.append(f' "{value}"')
     err_msg_components.append('.')
 
     echo.error(''.join(err_msg_components))

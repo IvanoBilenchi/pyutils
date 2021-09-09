@@ -109,7 +109,7 @@ class Task:
             try:
                 if stdin:
                     stdin.close()
-                exc.re_raise_new_message(e, 'Failed to call process: {}'.format(self.path))
+                exc.re_raise_new_message(e, f'Failed to call process: {self.path}')
             except Exception:
                 raise e
 
@@ -158,10 +158,10 @@ class Task:
         should_raise = False
 
         if self.exit_code:
-            auto_msg = 'Process "{}" returned exit code: {:d}'.format(self.name, self.exit_code)
+            auto_msg = f'Process "{self.name}" returned exit code: {self.exit_code:d}'
             should_raise = True
         elif ensure_output and not self.stdout:
-            auto_msg = 'Process "{}" returned no output.'.format(self.name)
+            auto_msg = f'Process "{self.name}" returned no output.'
             should_raise = True
 
         if should_raise:
