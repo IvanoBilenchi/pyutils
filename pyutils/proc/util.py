@@ -3,13 +3,13 @@ from __future__ import annotations
 import re
 import signal
 from distutils import spawn
+from functools import cache
 from typing import List
 
 from pyutils import exc
-from pyutils.decorators import memoized
 
 
-@memoized
+@cache
 def find_executable(executable: str, path: str | None = None) -> str:
     """Try to find 'executable' in the directories listed in 'path'."""
     exe_path = spawn.find_executable(executable, path)
@@ -118,7 +118,7 @@ def pkill(pattern: str, sig: int = signal.SIGKILL, match_arguments: bool = True)
     return found
 
 
-# noinspection PyPackageRequirements
+# noinspection PyPackageRequirements,PyUnresolvedReferences
 def _import_psutil():
     """Convenience function for optional psutil import."""
     import psutil as ps
