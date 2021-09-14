@@ -1,4 +1,5 @@
 import errno
+import hashlib
 import mmap
 import os
 import shutil
@@ -46,6 +47,21 @@ def create_dir(path: str) -> None:
     except OSError as e:
         if not (e.errno == errno.EEXIST and os.path.isdir(path)):
             raise
+
+
+def file_hash(path: str, algo: str = 'sha1') -> str:
+    """Returns the hash of the file at the specified path."""
+    buf_size = 2 ** 16
+    algo = getattr(hashlib, algo)()
+
+    with open(path, 'rb') as f:
+        while True:
+            data = f.read(buf_size)
+            if not data:
+                break
+            algo.update(data)
+
+    return algo.hexdigest()
 
 
 def human_readable_scale_and_unit(n_bytes: int) -> (int, str):
