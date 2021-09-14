@@ -8,6 +8,7 @@ import re
 import signal
 import subprocess as sp
 import tempfile
+from functools import cached_property
 from threading import Event, Thread
 from time import perf_counter_ns, sleep
 from typing import List, Set
@@ -96,6 +97,17 @@ class EnergyProbe:
     Abstract class representing an object that can be polled
     in order to retrieve power samples for a specific task.
     """
+
+    @cached_property
+    def name(self) -> str:
+        """The name of this probe."""
+        n = type(self).__name__
+
+        for suffix in ('probe', 'energy'):
+            if n.lower().endswith(suffix):
+                n = n[:-len(suffix)]
+
+        return n
 
     def start(self, task: Task) -> None:
         """
