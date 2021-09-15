@@ -13,10 +13,11 @@ from threading import Event, Thread
 from time import perf_counter_ns, sleep
 from typing import List, Set
 
-from pyutils import exc
-from pyutils.io import fileutils
 from .task import Task
 from .util import find_executable, get_pid_tree
+from .. import exc
+from ..io import fileutils
+from ..inspectutils import get_subclasses
 
 
 class Benchmark:
@@ -97,6 +98,24 @@ class EnergyProbe:
     Abstract class representing an object that can be polled
     in order to retrieve power samples for a specific task.
     """
+
+    __ALL: List[EnergyProbe] = None
+
+    @classmethod
+    def all(cls) -> List[EnergyProbe]:
+        """Returns all the available energy probes."""
+        if cls.__ALL is None:
+            cls.__ALL = list(sorted((s() for s in get_subclasses(cls)), key=lambda p: p.name))
+        return cls.__ALL
+
+    @classmethod
+    def with_name(cls, name: str) -> EnergyProbe:
+        """Returns the energy probe that has the specified name."""
+        try:
+            name = name.lower()
+            return next(p for p in cls.all() if p.name.lower() == name)
+        except StopIteration:
+            raise ValueError(f'No energy probe named "{name}"')
 
     @cached_property
     def name(self) -> str:
