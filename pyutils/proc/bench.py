@@ -97,6 +97,8 @@ class EnergyProbe:
     """
     Abstract class representing an object that can be polled
     in order to retrieve power samples for a specific task.
+
+    :ivar interval: Sampling interval in milliseconds.
     """
 
     __ALL: List[EnergyProbe] = None
@@ -127,6 +129,9 @@ class EnergyProbe:
                 n = n[:-len(suffix)]
 
         return n
+
+    def __init__(self) -> None:
+        self.interval: int = 1000
 
     def start(self, task: Task) -> None:
         """
@@ -161,16 +166,19 @@ class EnergyProfiler:
     """Run an energy impact profiler for a given task."""
 
     @property
+    def interval(self) -> int:
+        """Polling interval in milliseconds."""
+        return self._probe.interval
+
+    @property
     def score(self) -> float:
         """Returns a score representing a proxy of the energy used by the profiled process."""
-        return sum(self.samples) * self.sampling_interval / 1000.0
+        return sum(self.samples) * self.interval / 1000.0
 
-    def __init__(self, task: Task, probe: EnergyProbe, sampling_interval: int = 1000) -> None:
+    def __init__(self, task: Task, probe: EnergyProbe, interval: int = 1000) -> None:
         exc.raise_if_none(task=task, probe=probe)
-
+        probe.interval = interval
         self.samples: List[float] = []
-        self.sampling_interval = sampling_interval if sampling_interval > 0 else 1000
-
         self._task = task
         self._probe = probe
 
@@ -193,14 +201,15 @@ class EnergyProfiler:
 
     def _poll_probe(self) -> None:
         while self._task.exit_code is None:
-            sleep(self.sampling_interval / 1000.0)
+            sleep(self.interval / 1000.0)
             self._probe.poll()
 
 
 class PowermetricsProbe(EnergyProbe):
     """EnergyProbe implementation using powermetrics on macOS."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        super().__init__()
         self._task: Task | None = None
         self._samples: List[float] = []
         self._energy_task: sp.Popen | None = None
@@ -309,9 +318,9 @@ class PowertopProbe(EnergyProbe):
     _PID_RE = re.compile(r';\[PID (\d+)].*;\s*([\d.]+)\s([mu]?W)\s*$')
     _REPORT_FILENAME = 'report'
 
-    def __init__(self, polling_time: float = 1.0):
+    def __init__(self) -> None:
+        super().__init__()
         self._task: Task | None = None
-        self._polling_time: float = polling_time
         self._energy_task: sp.Popen | None = None
         self._pids: Set[int] = set()
         self._report_directory = tempfile.mkdtemp(prefix='evowluator_')
@@ -325,7 +334,7 @@ class PowertopProbe(EnergyProbe):
 
         args = [
             find_executable('powertop'),
-            '-t', str(self._polling_time),
+            '-t', str(self.interval / 1000.0),
             '-i', str(2 ** 63 - 1),
             f'-C{os.path.join(self._report_directory, self._REPORT_FILENAME)}'
         ]
