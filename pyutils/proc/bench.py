@@ -130,6 +130,11 @@ class EnergyProbe:
 
         return n
 
+    @property
+    def interval_seconds(self) -> float:
+        """Sampling interval in seconds."""
+        return self.interval / 1000.0
+
     def __init__(self) -> None:
         self.interval: int = 1000
 
@@ -166,14 +171,9 @@ class EnergyProfiler:
     """Run an energy impact profiler for a given task."""
 
     @property
-    def interval(self) -> int:
-        """Polling interval in milliseconds."""
-        return self._probe.interval
-
-    @property
     def score(self) -> float:
         """Returns a score representing a proxy of the energy used by the profiled process."""
-        return sum(self.samples) * self.interval / 1000.0
+        return sum(self.samples) * self.interval_seconds
 
     def __init__(self, task: Task, probe: EnergyProbe, interval: int = 1000) -> None:
         exc.raise_if_none(task=task, probe=probe)
@@ -191,17 +191,21 @@ class EnergyProfiler:
         thread.start()
 
         self._task.run(timeout=timeout)
+        thread.join(timeout=self.interval_seconds * 2)
         self.samples = self._probe.stop()
         return self
 
     def __getattr__(self, item):
-        return getattr(self._task, item)
+        try:
+            return getattr(self._task, item)
+        except AttributeError:
+            return getattr(self._probe, item)
 
     # Private
 
     def _poll_probe(self) -> None:
         while self._task.exit_code is None:
-            sleep(self.interval / 1000.0)
+            sleep(self.interval_seconds)
             self._probe.poll()
 
 
@@ -351,7 +355,7 @@ class PowertopProbe(EnergyProbe):
 
         args = [
             find_executable('powertop'),
-            '-t', str(self.interval / 1000.0),
+            '-t', str(self.interval_seconds),
             '-i', str(2 ** 63 - 1),
             f'-C{os.path.join(self._report_directory, self._REPORT_FILENAME)}'
         ]
