@@ -205,13 +205,30 @@ class EnergyProfiler:
             self._probe.poll()
 
 
+class ZeroProbe(EnergyProbe):
+    """EnergyProbe implementation that always returns zero upon polling."""
+
+    def __init__(self):
+        super().__init__()
+        self._samples: List[float] | None = None
+
+    def start(self, task: Task) -> None:
+        self._samples = []
+
+    def poll(self) -> None:
+        self._samples.append(0.0)
+
+    def stop(self) -> List[float]:
+        return self._samples
+
+
 class PowermetricsProbe(EnergyProbe):
     """EnergyProbe implementation using powermetrics on macOS."""
 
     def __init__(self) -> None:
         super().__init__()
         self._task: Task | None = None
-        self._samples: List[float] = []
+        self._samples: List[float] | None = None
         self._energy_task: sp.Popen | None = None
         self._energy_task_event: Event = Event()
         self._dead_task_score: float = 0.0
