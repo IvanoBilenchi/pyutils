@@ -99,8 +99,8 @@ class Task:
             if self.input_path:
                 stdin = open(self.input_path)
 
-            self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle, stdin=stdin,
-                                     universal_newlines=True)
+            self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle,
+                                     stdin=stdin, text=True)
 
             if wait:
                 self.wait(timeout=timeout)
@@ -149,7 +149,10 @@ class Task:
     def send_signal(self, sig: int = signal.SIGKILL, children: bool = False) -> Task:
         """Send a signal to the task."""
         if self._process and self._process.pid is not None:
-            kill(self._process.pid, sig=sig, children=children)
+            if children:
+                kill(self._process.pid, sig=sig, children=children)
+            else:
+                self._process.send_signal(sig)
         return self
 
     def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> Task:
