@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import atexit
-import glob
 import os
 import platform
 import re
@@ -338,48 +337,43 @@ class PowertopProbe(EnergyProbe):
 
     _PID_RE = re.compile(r';\[PID (\d+)].*;\s*([\d.]+)\s([mu]?W)\s*$')
     _REPORT_FILENAME = 'report'
+    _MAX_READ_ATTEMPTS = 10
 
     def __init__(self) -> None:
         super().__init__()
         self._task: Task | None = None
         self._energy_task: sp.Popen | None = None
         self._pids: Set[int] = set()
-        self._report_directory = tempfile.mkdtemp(prefix='evowluator_')
+        self._report_directory: str = tempfile.mkdtemp(prefix='evowluator_')
+        self._is_powertop_running: bool = False
 
     def start(self, task: Task) -> None:
         exc.raise_if_not_root()
-
-        self._pids = set()
-        atexit.register(self._force_close)
-        fileutils.create_dir(self._report_directory)
-
-        args = [
-            find_executable('powertop'),
-            '-t', str(self.interval_seconds),
-            '-i', str(2 ** 63 - 1),
-            f'-C{os.path.join(self._report_directory, self._REPORT_FILENAME)}'
-        ]
-
         self._task = task
-        self._energy_task = sp.Popen(args, stdout=sp.DEVNULL, stderr=sp.DEVNULL,
-                                     universal_newlines=True)
+        self._pids = set()
+
+        if not self._is_powertop_running:
+            self._is_powertop_running = True
+            atexit.register(self._force_close)
+            fileutils.create_dir(self._report_directory)
+
+            args = [
+                find_executable('powertop'),
+                '-t', str(self.interval_seconds),
+                '-i', str(2 ** 63 - 1),
+                f'-C{os.path.join(self._report_directory, self._REPORT_FILENAME)}'
+            ]
+
+            self._energy_task = sp.Popen(args, stdout=sp.DEVNULL, stderr=sp.DEVNULL, text=True)
+
+        fileutils.remove_dir_contents(self._report_directory)
 
         while not self._reports():
             pass
 
     def stop(self) -> List[float]:
-        samples = []
-
-        for report in self._reports():
-            if os.path.getsize(report) == 0:
-                while os.path.getsize(report) == 0:
-                    pass
-                self._energy_task.send_signal(signal.SIGINT)
-
-            samples.append(self._read_report(report))
-        fileutils.remove_dir(self._report_directory, recursive=True)
-
-        return samples
+        samples = [self._read_report(x) for x in self._reports()]
+        return list(filter(lambda x: x != 0, samples))
 
     def poll(self) -> None:
         for tid in get_pid_tree(self._task.pid, include_tids=True):
@@ -392,14 +386,19 @@ class PowertopProbe(EnergyProbe):
         header_found = False
         header = "Overview of Software Power Consumers"
 
+        for _ in range(self._MAX_READ_ATTEMPTS * 10):
+            if os.path.getsize(filename) > 0:
+                break
+            sleep(0.1 * self.interval_seconds)
+
         with open(filename, 'r') as file:
             for line in file:
-
                 if not header_found and header not in line:
                     continue
-                header_found = True
 
+                header_found = True
                 res = self._PID_RE.search(line)
+
                 if res and int(res.group(1)) in self._pids:
                     sample += self._parse_value(res.group(2), res.group(3))
 
@@ -419,9 +418,11 @@ class PowertopProbe(EnergyProbe):
         return value
 
     def _reports(self) -> List[str]:
-        return glob.glob(os.path.join(self._report_directory, self._REPORT_FILENAME + "*"))
+        result = list(map(lambda file: os.path.join(self._report_directory, file),
+                        os.listdir(self._report_directory)))
+        return result
 
     def _force_close(self) -> None:
         if self._energy_task:
-            self._energy_task.send_signal(signal.SIGINT)
+            self._energy_task.send_signal(signal.SIGKILL)
         fileutils.remove_dir(self._report_directory, recursive=True)
