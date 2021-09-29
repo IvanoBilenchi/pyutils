@@ -189,9 +189,12 @@ class EnergyProfiler:
         thread.daemon = True
         thread.start()
 
-        self._task.run(timeout=timeout)
-        thread.join(timeout=self.interval_seconds * 2)
-        self.samples = self._probe.stop()
+        try:
+            self._task.run(timeout=timeout)
+            thread.join(timeout=self.interval_seconds * 2)
+        finally:
+            self.samples = self._probe.stop()
+
         return self
 
     def __getattr__(self, item):
