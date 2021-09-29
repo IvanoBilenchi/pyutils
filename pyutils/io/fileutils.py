@@ -4,6 +4,8 @@ import mmap
 import os
 import shutil
 
+from typing import Iterator
+
 from pyutils import exc
 
 
@@ -47,6 +49,17 @@ def create_dir(path: str) -> None:
     except OSError as e:
         if not (e.errno == errno.EEXIST and os.path.isdir(path)):
             raise
+
+
+def dir_contents(path: str, include_files: bool = True, include_dirs: bool = True) -> Iterator:
+    """Returns full paths to files and directories contained in the specified directory."""
+    if not (include_files or include_dirs):
+        return
+
+    with os.scandir(path) as it:
+        for entry in it:
+            if (include_dirs and entry.is_dir()) or (include_files and entry.is_file()):
+                yield entry.path
 
 
 def file_hash(path: str, algo: str = 'sha1') -> str:
@@ -114,9 +127,8 @@ def remove_dir(path: str, recursive: bool = False) -> None:
 def remove_empty_dirs(path: str) -> None:
     """Removes all the empty dirs in the specified folder."""
     try:
-        for dir_path in os.listdir(path):
-            if os.path.isdir(dir_path):
-                os.rmdir(dir_path)
+        for dir_path in dir_contents(path, include_files=False):
+            os.rmdir(dir_path)
     except OSError:
         pass
 
