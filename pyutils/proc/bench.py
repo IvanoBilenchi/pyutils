@@ -234,7 +234,6 @@ class PowermetricsProbe(EnergyProbe):
         self._samples: List[float] | None = None
         self._energy_task: sp.Popen | None = None
         self._energy_task_event: Event = Event()
-        self._dead_task_score: float = 0.0
 
     def start(self, task: Task) -> None:
         exc.raise_if_not_root()
@@ -248,8 +247,7 @@ class PowermetricsProbe(EnergyProbe):
             '-i', '0',
         ]
 
-        self._energy_task = sp.Popen(args, stdout=sp.PIPE, stderr=sp.DEVNULL,
-                                     universal_newlines=True)
+        self._energy_task = sp.Popen(args, stdout=sp.PIPE, stderr=sp.DEVNULL, text=True)
 
         thread = Thread(target=self._parse_profiler)
         thread.daemon = True
@@ -259,10 +257,11 @@ class PowermetricsProbe(EnergyProbe):
         self._energy_task.send_signal(signal.SIGINFO)
 
     def stop(self) -> List[float]:
-        self._energy_task.send_signal(signal.SIGINFO)
-        sleep(0.1)
         self._energy_task.send_signal(signal.SIGTERM)
-        self._energy_task_event.wait()
+
+        if not self._energy_task_event.wait(timeout=self.interval_seconds * 2):
+            self._energy_task.send_signal(signal.SIGKILL)
+
         return self._samples
 
     # Private
@@ -295,41 +294,43 @@ class PowermetricsProbe(EnergyProbe):
 
     def _parse_tasks(self, task_lines: List[str]) -> None:
         pids = get_pid_tree(self._task.pid)
+        dead_tasks_pid = -1
+
         score = None
-        dead_task_score = None
+        dead_tasks_score = None
 
         for line in task_lines:
             components = line.strip().split()
 
             try:
                 pid = int(components[1])
+                pid_score = float(components[-1])
 
-                if pid == -1:
+                if pid == dead_tasks_pid:
                     # Estimate based on DEAD_TASKS.
-                    dead_task_score = float(components[-1])
-
-                    n_samples = len(self._samples)
-
-                    if n_samples <= 1:
-                        continue
-
-                    # Discard DEAD_TASKS outliers.
-                    mean = self._mean()
-                    if dead_task_score > n_samples * mean / 2.0:
-                        dead_task_score = mean
+                    dead_tasks_score = self._validated_dead_tasks_score(pid_score)
                 else:
                     # Sum sample if pid belongs to the profiled process.
                     pids.remove(pid)
-                    pid_score = float(components[-1])
-
                     score = pid_score if score is None else score + pid_score
             except (IndexError, ValueError):
                 continue
 
-        score = dead_task_score if score is None else score
+        score = dead_tasks_score if score is None else score
 
         if score is not None:
             self._samples.append(score)
+
+    def _validated_dead_tasks_score(self, score: float) -> float | None:
+        n_samples = len(self._samples)
+
+        if n_samples > 1:
+            # Discard outliers.
+            mean = self._mean()
+            if score > n_samples * mean / 2.0:
+                score = mean
+
+        return score
 
 
 class PowertopProbe(EnergyProbe):
@@ -418,9 +419,8 @@ class PowertopProbe(EnergyProbe):
         return value
 
     def _reports(self) -> List[str]:
-        result = list(map(lambda file: os.path.join(self._report_directory, file),
+        return list(map(lambda file: os.path.join(self._report_directory, file),
                         os.listdir(self._report_directory)))
-        return result
 
     def _force_close(self) -> None:
         if self._energy_task:
