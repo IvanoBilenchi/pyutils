@@ -32,7 +32,7 @@ class Benchmark:
 
     @property
     def max_memory_string(self) -> str:
-        return fileutils.human_readable_bytes(self._max_memory)
+        return fileutils.readable_bytes(self._max_memory)
 
     @property
     def nanoseconds(self) -> int:

@@ -77,7 +77,7 @@ def file_hash(path: str, algo: str = 'sha1') -> str:
     return algo.hexdigest()
 
 
-def human_readable_scale_and_unit(n_bytes: int) -> (int, str):
+def readable_scale_and_unit(n_bytes: int) -> (int, str):
     """Returns the human readable scale and unit for the specified bytes."""
     scale = 1
     for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
@@ -88,15 +88,15 @@ def human_readable_scale_and_unit(n_bytes: int) -> (int, str):
     return scale, 'YiB'
 
 
-def human_readable_bytes(n_bytes: int) -> str:
+def readable_bytes(n_bytes: int) -> str:
     """Returns the human readable size for the specified bytes."""
-    scale, unit = human_readable_scale_and_unit(n_bytes)
+    scale, unit = readable_scale_and_unit(n_bytes)
     return f'{n_bytes / scale:.1f} {unit}'
 
 
-def human_readable_size(path: str) -> str:
+def readable_size(path: str) -> str:
     """Returns the human readable size for the file at the specified path."""
-    return human_readable_bytes(os.path.getsize(path))
+    return readable_bytes(os.path.getsize(path))
 
 
 def remove(path: str) -> None:
