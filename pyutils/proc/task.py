@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import signal
 import subprocess as sp
+import types
 from enum import Enum, auto
 from threading import Thread
 from typing import Callable, List
@@ -80,6 +81,7 @@ class Task:
         self.args = args
         self.output_action = output_action
         self.input_path = input_path
+        self.rusage = None
 
         self._completed: sp.CompletedProcess | None = None
         self._process: sp.Popen | None = None
@@ -118,6 +120,7 @@ class Task:
     def wait(self, timeout: float | None = None) -> Task:
         """Wait for the task to exit."""
         try:
+            self.__patch_wait(self._process)
             stdout, stderr = self._process.communicate(timeout=timeout)
         except sp.TimeoutExpired:
             self.send_signal(sig=signal.SIGKILL, children=True)
@@ -135,7 +138,9 @@ class Task:
         if stderr:
             stderr = stderr.strip()
 
+        self.rusage = getattr(self._process, 'rusage', None)
         self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
+
         return self
 
     def run_async(self, timeout: float | None = None,
@@ -204,6 +209,20 @@ class Task:
         finally:
             if exit_handler:
                 exit_handler(self, err)
+
+    # Private methods
+
+    def __patch_wait(self, process: sp.Popen) -> None:
+        def wait_impl(s, wait_flags):
+            try:
+                (pid, sts, rusage) = os.wait4(s.pid, wait_flags)
+            except ChildProcessError:
+                pid = s.pid
+                sts = 0
+                rusage = None
+            setattr(s, 'rusage', rusage)
+            return pid, sts
+        process._try_wait = types.MethodType(wait_impl, process)
 
 
 def java_args(jar: str, jar_args: List[str] | None = None,

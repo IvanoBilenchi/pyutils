@@ -58,17 +58,14 @@ class Benchmark:
 
     def run(self, timeout: float | None = None) -> Benchmark:
         """Runs the benchmark."""
-        thread = Thread(target=self._watchdog, args=[timeout])
-        thread.daemon = True
-        thread.start()
+        Thread(target=self._watchdog, args=[timeout], daemon=True).start()
 
         start = perf_counter_ns()
-        self.task.run(wait=False)
-        result = os.wait4(self.task.pid, 0)[2]
+        self.task.run()
         self._task_completed_event.set()
 
         self._nanos = perf_counter_ns() - start
-        self._max_memory = result.ru_maxrss
+        self._max_memory = self.task.rusage.ru_maxrss if self.task.rusage else 0
 
         if platform.system() != 'Darwin':
             self._max_memory *= 1024
