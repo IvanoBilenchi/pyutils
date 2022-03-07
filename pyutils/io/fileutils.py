@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import errno
 import hashlib
 import mmap
@@ -75,6 +77,12 @@ def file_hash(path: str, algo: str = 'sha1') -> str:
             algo.update(data)
 
     return algo.hexdigest()
+
+
+def file_contents(path: str, mode: str = 'r') -> str | bytes:
+    """Returns the contents of the file at the specified path."""
+    with open(path, mode) as in_file:
+        return in_file.read()
 
 
 def readable_scale_and_unit(n_bytes: int) -> (int, str):
