@@ -8,7 +8,7 @@ import shutil
 
 from typing import Iterator
 
-from pyutils import exc
+from .. import exc
 
 
 def contains(file_path: str, string: str) -> bool:

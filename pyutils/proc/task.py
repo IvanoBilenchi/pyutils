@@ -8,8 +8,8 @@ from enum import Enum, auto
 from threading import Thread
 from typing import Callable, List
 
-from pyutils import exc
 from .util import find_executable, kill
+from .. import exc
 
 
 # Public classes

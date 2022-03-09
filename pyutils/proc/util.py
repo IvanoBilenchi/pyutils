@@ -6,7 +6,7 @@ from distutils import spawn
 from functools import cache
 from typing import List
 
-from pyutils import exc
+from .. import exc
 
 
 @cache

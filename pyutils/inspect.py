@@ -1,7 +1,9 @@
-from typing import Iterator
+from typing import Iterator, TypeVar
+
+T = TypeVar('T')
 
 
-def subclasses(cls: type) -> Iterator[type]:
+def subclasses(cls: T) -> Iterator[T]:
     """Returns the subclasses of the specified class, recursively."""
     for s in cls.__subclasses__():
         yield s

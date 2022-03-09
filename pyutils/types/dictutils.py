@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Dict, Mapping
 
-from . import exc
+from .stringutils import split
+from .. import exc
 
 
 def from_string(string: str, line_sep: str = '\n', value_sep: str = '=',
@@ -14,7 +15,7 @@ def from_string(string: str, line_sep: str = '\n', value_sep: str = '=',
     if not string:
         return dictionary
 
-    for line in string.split(line_sep):
+    for line in split(string, sep=line_sep):
         k, v = line.partition(value_sep)[::2]
         k = k.strip()
         v = v.strip()

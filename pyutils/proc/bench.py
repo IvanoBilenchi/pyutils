@@ -170,9 +170,8 @@ class EnergyProfiler:
         """Returns a score representing a proxy of the energy used by the profiled process."""
         return sum(self.samples) * self.interval_seconds
 
-    def __init__(self, task: Task | Benchmark, probe: EnergyProbe, interval: int = 1000) -> None:
+    def __init__(self, task: Task | Benchmark, probe: EnergyProbe) -> None:
         exc.raise_if_none(task=task, probe=probe)
-        probe.interval = interval
         self.samples: List[float] = []
         self._task = task
         self._probe = probe

@@ -4,7 +4,8 @@ import sys
 from typing import Iterable, TextIO
 
 from . import echo, file
-from .. import exc, stringutils
+from .. import exc
+from ..types import stringutils
 
 
 class PrettyPrinter:
@@ -74,7 +75,7 @@ class PrettyPrinter:
     def _indented(self, msg: str) -> str:
         if self.__last_printed_newline and self.indent_string and self.__indent.level:
             indent = self.indent_string * self.__indent.level
-            msg = '\n'.join(indent + line for line in stringutils.split(msg, sep='\n'))
+            msg = '\n'.join(indent + line for line in stringutils.split(msg, sep='\n', strip=False))
         return msg
 
     def open(self) -> None:

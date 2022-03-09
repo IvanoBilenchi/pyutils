@@ -1,7 +1,7 @@
 import plistlib
 from typing import Dict
 
-from pyutils import exc
+from .. import exc
 
 
 # Public functions
