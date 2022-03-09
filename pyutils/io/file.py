@@ -64,7 +64,7 @@ def dir_contents(path: str, include_files: bool = True, include_dirs: bool = Tru
                 yield entry.path
 
 
-def file_hash(path: str, algo: str = 'sha1') -> str:
+def hex_hash(path: str, algo: str = 'sha1') -> str:
     """Returns the hash of the file at the specified path."""
     buf_size = 2 ** 16
     algo = getattr(hashlib, algo)()
@@ -79,7 +79,7 @@ def file_hash(path: str, algo: str = 'sha1') -> str:
     return algo.hexdigest()
 
 
-def file_contents(path: str, mode: str = 'r') -> str | bytes:
+def contents(path: str, mode: str = 'r') -> str | bytes:
     """Returns the contents of the file at the specified path."""
     with open(path, mode) as in_file:
         return in_file.read()

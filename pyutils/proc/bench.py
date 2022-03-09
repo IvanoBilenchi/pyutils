@@ -14,9 +14,8 @@ from typing import Iterator, List, Set
 
 from .task import OutputAction, Task
 from .util import find_executable, get_pid_tree
-from .. import exc
-from ..io import fileutils
-from ..inspectutils import get_subclasses
+from .. import exc, inspect
+from ..io import file
 
 
 class Benchmark:
@@ -32,7 +31,7 @@ class Benchmark:
 
     @property
     def max_memory_string(self) -> str:
-        return fileutils.readable_bytes(self._max_memory)
+        return file.readable_bytes(self._max_memory)
 
     @property
     def nanoseconds(self) -> int:
@@ -103,7 +102,7 @@ class EnergyProbe:
     def all(cls) -> List[EnergyProbe]:
         """Returns all the available energy probes."""
         if cls.__ALL is None:
-            cls.__ALL = list(sorted((s() for s in get_subclasses(cls)), key=lambda p: p.name))
+            cls.__ALL = list(sorted((s() for s in inspect.subclasses(cls)), key=lambda p: p.name))
         return cls.__ALL
 
     @classmethod
@@ -371,7 +370,7 @@ class PowertopProbe(EnergyProbe):
             return
 
         atexit.register(self._force_close)
-        fileutils.create_dir(self._report_directory)
+        file.create_dir(self._report_directory)
 
         args = [
             '-t', str(self.interval_seconds),
@@ -382,7 +381,7 @@ class PowertopProbe(EnergyProbe):
         self._energy_task = Task('powertop', args, OutputAction.DISCARD).run(wait=False)
 
     def _wait_for_new_reports(self) -> None:
-        fileutils.remove_dir_contents(self._report_directory)
+        file.remove_dir_contents(self._report_directory)
 
         while not next(self._reports(), None):
             sleep(0.1)
@@ -404,8 +403,8 @@ class PowertopProbe(EnergyProbe):
         header_found = False
         header = "Overview of Software Power Consumers"
 
-        with open(path, 'r') as file:
-            for line in file:
+        with open(path, 'r') as report_file:
+            for line in report_file:
                 if not header_found and header not in line:
                     continue
 
@@ -431,9 +430,9 @@ class PowertopProbe(EnergyProbe):
         return value
 
     def _reports(self) -> Iterator:
-        return fileutils.dir_contents(self._report_directory, include_dirs=False)
+        return file.dir_contents(self._report_directory, include_dirs=False)
 
     def _force_close(self) -> None:
         if self._energy_task:
             self._energy_task.send_signal(signal.SIGKILL)
-        fileutils.remove_dir(self._report_directory, recursive=True)
+        file.remove_dir(self._report_directory, recursive=True)

@@ -16,7 +16,7 @@ def snake_case_split(string: str) -> Iterator[str]:
     return split(string, sep='_')
 
 
-def hash(string: str, algo: str = 'sha1') -> str:
+def hex_hash(string: str, algo: str = 'sha1') -> str:
     """Returns the hash of the specified string."""
     return getattr(hashlib, algo)(string.encode('utf-8')).hexdigest()
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from typing import Iterable, TextIO
 
-from . import echo, fileutils
+from . import echo, file
 from .. import exc, stringutils
 
 
@@ -92,4 +92,4 @@ class PrettyPrinter:
     def clear(self) -> None:
         """Removes the file."""
         self.close()
-        fileutils.remove(self.__file_path)
+        file.remove(self.__file_path)

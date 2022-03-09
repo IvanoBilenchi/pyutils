@@ -15,16 +15,6 @@ class FileType(Enum):
     DIR = 2
 
 
-class ProgramExit(Exception):
-    """Raise to express the will to exit from the program."""
-    pass
-
-
-def raise_exit(message: str | None = None) -> None:
-    """Raise a ProgramExit with the specified message."""
-    raise ProgramExit(message)
-
-
 def raise_ioerror(err_no: int, path: str | None = None, message: str | None = None) -> None:
     """Raise an IOError with an auto-generated message based on err_no."""
     if not message:
@@ -57,7 +47,7 @@ def raise_if_falsy(**kwargs: Any) -> None:
         value = kwargs[key]
         if not value:
             if value is None:
-                adj = '"None"'
+                adj = 'None'
             elif value == 0:
                 adj = 'zero'
             else:
