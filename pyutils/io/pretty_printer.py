@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import sys
-from typing import Iterable, TextIO
+from typing import Iterable, List, TextIO
 
 from . import echo, file
-from .. import exc
 from ..types import stringutils
 
 
@@ -27,19 +25,19 @@ class PrettyPrinter:
         def __exit__(self, exc_type, exc_val, exc_tb):
             self._level = max(self._level - 1, 0)
 
-    @property
-    def file_path(self) -> str:
-        """Path of the file to print to."""
-        return self.__file_path
+    def __init__(self, *args: str | TextIO) -> None:
+        self.indent_string = ' ' * 4
 
-    def __init__(self, file_path: str, stdout: bool = True, indent_string: str = ' ' * 4) -> None:
-        exc.raise_if_falsy(file_path=file_path)
+        self.__paths = []
+        self.__streams = []
 
-        self.stdout = stdout
-        self.indent_string = indent_string
+        for arg in args:
+            if isinstance(arg, str):
+                self.__paths.append(arg)
+            else:
+                self.__streams.append(arg)
 
-        self.__file_path = file_path
-        self.__file: TextIO | None = None
+        self.__files: List[TextIO] | None = None
         self.__last_printed_newline = True
         self.__open_nesting = 0
         self.__indent = self.IndentContext()
@@ -67,10 +65,9 @@ class PrettyPrinter:
             self.__last_printed_newline = endl or message.endswith('\n')
 
     def _streams(self) -> Iterable[TextIO]:
-        if self.stdout:
-            yield sys.stdout
-        if self.__file:
-            yield self.__file
+        yield from self.__streams
+        if self.__files:
+            yield from self.__files
 
     def _indented(self, msg: str) -> str:
         if self.__last_printed_newline and self.indent_string and self.__indent.level:
@@ -79,18 +76,21 @@ class PrettyPrinter:
         return msg
 
     def open(self) -> None:
-        """Opens the file in append mode."""
-        if not self.__file:
-            self.__file = open(self.__file_path, mode='a')
+        """Opens the files in append mode."""
+        if not self.__files:
+            self.__files = [open(p, mode='a') for p in self.__paths]
 
     def close(self) -> None:
-        """Closes the file."""
-        if self.__file:
-            self.__file.close()
-            self.__file = None
-            self.__last_printed_newline = True
+        """Closes the files."""
+        if not self.__files:
+            return
+        for f in self.__files:
+            f.close()
+        self.__files = None
+        self.__last_printed_newline = True
 
     def clear(self) -> None:
-        """Removes the file."""
+        """Removes all the files."""
         self.close()
-        file.remove(self.__file_path)
+        for file_path in self.__paths:
+            file.remove(file_path)
