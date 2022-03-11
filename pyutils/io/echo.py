@@ -1,8 +1,8 @@
+from __future__ import annotations
+
 import sys
 from enum import Enum
 from typing import TextIO
-
-# Public classes
 
 
 class Color(Enum):
@@ -16,9 +16,6 @@ class Color(Enum):
     CYAN = 36
     WHITE = 37
     CRIMSON = 38
-
-
-# Public functions
 
 
 def pretty(message: str, color: Color = None, bold: bool = False,
@@ -45,16 +42,24 @@ def pretty(message: str, color: Color = None, bold: bool = False,
         out_file.flush()
 
 
-def info(message: str, endl: bool = True) -> None:
-    """Print message to stdout."""
-    pretty(message, endl=endl)
+def _make_color_print(color: Color | None, file: TextIO = None):
+    def _color_print(message: str, bold: bool = False, endl: bool = True,
+                     out_file: TextIO = sys.stdout) -> None:
+        pretty(message, color=color, bold=bold, endl=endl, out_file=file if file else out_file)
+    return _color_print
 
 
-def success(message: str, endl: bool = True) -> None:
-    """Print message in green to stdout."""
-    pretty(message, color=Color.GREEN, endl=endl)
+log = _make_color_print(None)
+gray = _make_color_print(Color.GRAY)
+red = _make_color_print(Color.RED)
+green = _make_color_print(Color.GREEN)
+yellow = _make_color_print(Color.YELLOW)
+blue = _make_color_print(Color.BLUE)
+magenta = _make_color_print(Color.MAGENTA)
+cyan = _make_color_print(Color.CYAN)
+white = _make_color_print(Color.WHITE)
+crimson = _make_color_print(Color.CRIMSON)
 
-
-def error(message: str, endl: bool = True) -> None:
-    """Print message in red to stderr."""
-    pretty(message, color=Color.RED, endl=endl, out_file=sys.stderr)
+info = log
+success = green
+error = _make_color_print(Color.RED, sys.stderr)
