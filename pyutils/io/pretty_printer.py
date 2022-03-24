@@ -4,7 +4,7 @@ import math
 from typing import Iterable, Iterator, List, TextIO
 
 from . import echo, file
-from ..types import stringutils
+from ..types import string
 
 
 class PrettyPrinter:
@@ -114,7 +114,7 @@ class PrettyPrinter:
 
         # Remaining part of the message
         max_len = 0
-        for line in stringutils.split(msg[count:], sep='\n', strip=False):
+        for line in string.split(msg[count:], sep='\n', strip=False):
             if line:
                 yield indent + line if indent and self.__prev_newlines else line
                 self.__prev_newlines = 1
