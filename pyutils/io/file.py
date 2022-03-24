@@ -9,6 +9,7 @@ import shutil
 from typing import Iterator
 
 from .. import exc
+from ..types.memory import MemoryUnit
 
 
 def contains(file_path: str, string: str) -> bool:
@@ -85,26 +86,9 @@ def contents(path: str, mode: str = 'r') -> str | bytes:
         return in_file.read()
 
 
-def readable_scale_and_unit(n_bytes: int) -> (int, str):
-    """Returns the human readable scale and unit for the specified bytes."""
-    scale = 1
-    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
-        if n_bytes < 1024:
-            return scale, unit + 'B'
-        n_bytes /= 1024
-        scale *= 1024
-    return scale, 'YiB'
-
-
-def readable_bytes(n_bytes: int) -> str:
-    """Returns the human readable size for the specified bytes."""
-    scale, unit = readable_scale_and_unit(n_bytes)
-    return f'{n_bytes / scale:.1f} {unit}'
-
-
 def readable_size(path: str) -> str:
     """Returns the human readable size for the file at the specified path."""
-    return readable_bytes(os.path.getsize(path))
+    return MemoryUnit.B(os.path.getsize(path)).human_readable().formatted(decimal_digits=2)
 
 
 def remove(path: str) -> None:
