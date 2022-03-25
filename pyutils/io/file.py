@@ -9,7 +9,7 @@ import shutil
 from typing import Iterator
 
 from .. import exc
-from ..types.memory import MemoryUnit
+from ..types.unit import MemoryUnit
 
 
 def contains(file_path: str, string: str) -> bool:
@@ -88,7 +88,7 @@ def contents(path: str, mode: str = 'r') -> str | bytes:
 
 def readable_size(path: str) -> str:
     """Returns the human readable size for the file at the specified path."""
-    return MemoryUnit.B(os.path.getsize(path)).human_readable().formatted(decimal_digits=2)
+    return str(MemoryUnit.B(os.path.getsize(path)).readable())
 
 
 def remove(path: str) -> None:

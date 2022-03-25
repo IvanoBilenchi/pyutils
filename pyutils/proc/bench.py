@@ -16,6 +16,7 @@ from .task import OutputAction, Task
 from .util import find_executable, get_pid_tree
 from .. import exc, inspect
 from ..io import file
+from ..types.unit import PowerUnit
 
 
 class Benchmark:
@@ -340,7 +341,7 @@ class PowertopProbe(EnergyProbe):
         self._task: Task | None = None
         self._energy_task: Task | None = None
         self._pids: Set[int] | None = None
-        self._report_directory: str = tempfile.mkdtemp(prefix='evowluator_')
+        self._report_directory: str = tempfile.mkdtemp(prefix='pyutils_powertop_')
 
     def start(self, task: Task) -> None:
         exc.raise_if_not_root()
@@ -413,16 +414,9 @@ class PowertopProbe(EnergyProbe):
 
     def _parse_value(self, value: str, unit: str) -> float:
         try:
-            value = float(value)
-        except ValueError:
+            return PowerUnit(unit)(value).to_value(PowerUnit.W)
+        except (KeyError, ValueError):
             return 0.0
-
-        if unit == 'uW':
-            value /= 1000000.0
-        elif unit == 'mW':
-            value /= 1000.0
-
-        return value
 
     def _reports(self) -> Iterator:
         return file.dir_contents(self._report_directory, include_dirs=False)
