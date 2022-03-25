@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from enum import Enum
-from typing import TextIO
+from typing import Any, TextIO
 
 
 class Color(Enum):
@@ -18,7 +18,7 @@ class Color(Enum):
     CRIMSON = 38
 
 
-def pretty(message: str, color: Color = None, bold: bool = False,
+def pretty(message: Any, color: Color = None, bold: bool = False,
            endl: bool = True, out_file: TextIO = sys.stdout) -> None:
     """Print colored message to the specified file."""
     msg = message
@@ -43,7 +43,7 @@ def pretty(message: str, color: Color = None, bold: bool = False,
 
 
 def _make_color_print(color: Color | None, file: TextIO = None):
-    def _color_print(message: str, bold: bool = False, endl: bool = True,
+    def _color_print(message: Any, bold: bool = False, endl: bool = True,
                      out_file: TextIO = sys.stdout) -> None:
         pretty(message, color=color, bold=bold, endl=endl, out_file=file if file else out_file)
     return _color_print

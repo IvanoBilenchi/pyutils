@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable, Iterator, List, TextIO
+from typing import Any, Iterable, Iterator, List, TextIO
 
 from . import echo, file
 from ..types import string
@@ -73,7 +73,7 @@ class PrettyPrinter:
     def __call__(self, *args, **kwargs):
         self.print(*args, **kwargs)
 
-    def print(self, message: str, color: echo.Color = None,
+    def print(self, message: Any, color: echo.Color = None,
               bold: bool = False, underline: str | None = None, endl: bool = True) -> None:
         """Prints the specified message."""
         self._print(echo.pretty, message, color=color, bold=bold, underline=underline, endl=endl)
@@ -84,7 +84,7 @@ class PrettyPrinter:
         if flush:
             self.print('', endl=False)
 
-    def _print(self, func, message: str, underline: str | None = None,
+    def _print(self, func, message: Any, underline: str | None = None,
                endl: bool = True, **kwargs) -> None:
         message = self._format(message, underline, endl)
         with self:
@@ -96,9 +96,9 @@ class PrettyPrinter:
         if self.__files:
             yield from self.__files
 
-    def _format(self, msg: str, underline: str | None, endl: bool) -> str:
+    def _format(self, msg: Any, underline: str | None, endl: bool) -> str:
         indent = self.indent_string * self.__indent.level
-        return '\n'.join(self._formatted_lines(msg, indent, underline, endl))
+        return '\n'.join(self._formatted_lines(str(msg), indent, underline, endl))
 
     def _formatted_lines(self, msg: str, indent: str,
                          underline: str | None, endl: bool) -> Iterator[str]:
