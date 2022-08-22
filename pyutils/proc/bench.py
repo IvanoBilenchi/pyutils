@@ -73,4 +73,4 @@ class Benchmark:
     def _watchdog(self, timeout: float) -> None:
         if not self._task_completed_event.wait(timeout=timeout):
             self._timeout_occurred = True
-            self.task.send_signal(signal.SIGKILL)
+            self.task.send_signal(signal.SIGKILL, children=True)
