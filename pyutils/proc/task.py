@@ -42,6 +42,10 @@ class Task:
         return self._completed.stderr if self._completed else None
 
     @property
+    def completed(self) -> bool:
+        return True if self._completed else False
+
+    @property
     def exit_code(self) -> int | None:
         return self._completed.returncode if self._completed else None
 
@@ -119,6 +123,7 @@ class Task:
 
     def wait(self, timeout: float | None = None) -> Task:
         """Wait for the task to exit."""
+        stdout, stderr = None, None
         try:
             self.__patch_wait(self._process)
             stdout, stderr = self._process.communicate(timeout=timeout)
@@ -129,18 +134,10 @@ class Task:
         except Exception:
             self.send_signal(sig=signal.SIGKILL, children=True)
             raise
-
-        retcode = self._process.poll()
-
-        if stdout:
-            stdout = stdout.strip()
-
-        if stderr:
-            stderr = stderr.strip()
-
-        self.rusage = getattr(self._process, 'rusage', None)
-        self._completed = sp.CompletedProcess(self._popen_args, retcode, stdout, stderr)
-
+        finally:
+            self.rusage = getattr(self._process, 'rusage', None)
+            self._completed = sp.CompletedProcess(self._popen_args, self._process.poll(),
+                                                  stdout, stderr)
         return self
 
     def run_async(self, timeout: float | None = None,
