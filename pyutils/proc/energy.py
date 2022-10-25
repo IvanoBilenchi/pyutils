@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from functools import cached_property
 from threading import Event, Thread
-from time import sleep
+from time import perf_counter_ns, sleep
 from typing import Dict, Iterator, List, Set
 
 from .bench import Benchmark
@@ -21,12 +21,32 @@ from ..io import file
 from ..types.unit import PowerUnit
 
 
+class EnergySample:
+    """
+    Represents a single energy sample.
+
+    :ivar power: Score proportional to the average power usage during the given interval.
+    :ivar interval: Sampling interval in milliseconds.
+    """
+
+    @property
+    def energy(self) -> float:
+        """Energy score, proportional to the energy usage during the given interval."""
+        return self.power * self.interval
+
+    def __init__(self, power: float = 0.0, interval: float = 0.0):
+        self.power = power
+        self.interval = interval
+
+
 class EnergyProbe(ABC):
     """
     Abstract class representing an object that can be polled
     in order to retrieve power samples for a specific task.
 
     :ivar interval: Sampling interval in milliseconds.
+    :ivar start_timestamp: Start timestamp with nanoseconds resolution.
+    :ivar stop_timestamp: Stop timestamp with nanoseconds resolution.
     """
 
     __ALL: List[EnergyProbe] = None
@@ -65,6 +85,8 @@ class EnergyProbe(ABC):
 
     def __init__(self) -> None:
         self.interval: int = 1000
+        self.start_timestamp: int = 0
+        self.stop_timestamp: int = 0
 
     @abstractmethod
     def start(self, task: Task) -> None:
@@ -101,16 +123,15 @@ class EnergyProbe(ABC):
 class EnergyProfiler:
     """Run an energy impact profiler for a given task."""
 
-    @property
-    def score(self) -> float:
-        """Returns a score representing a proxy of the energy used by the profiled process."""
-        return sum(sum(s) * p.interval_seconds for p, s in self.samples.items()) / len(self.samples)
-
     def __init__(self, task: Task | Benchmark, probe: EnergyProbe | Sequence[EnergyProbe]) -> None:
         exc.raise_if_falsy(task=task, probe=probe)
-        self.samples: Dict[EnergyProbe, Sequence[float]] = {}
+        self.probes = (probe,) if isinstance(probe, EnergyProbe) else probe
+        self.samples: Dict[EnergyProbe, List[EnergySample]] = {}
         self._task = task
-        self._probes = (probe,) if isinstance(probe, EnergyProbe) else probe
+
+    def score(self, probe: EnergyProbe) -> float:
+        """Returns an energy impact score according to the specified probe."""
+        return sum(s.energy for s in self.samples[probe]) / 1E3
 
     def run(self, timeout: float | None = None) -> EnergyProfiler:
         """Runs the profiler."""
@@ -118,9 +139,9 @@ class EnergyProfiler:
 
         try:
             self._task.run(timeout=timeout)
-            for i, probe in enumerate(self._probes):
-                threads[i].join(timeout=probe.interval_seconds * 2)
         finally:
+            for i, probe in enumerate(self.probes):
+                threads[i].join(timeout=probe.interval_seconds * 2)
             self._stop_probes()
 
         return self
@@ -131,10 +152,12 @@ class EnergyProfiler:
     # Private
 
     def _start_probes(self) -> List[Thread]:
-        for probe in self._probes:
+        for probe in self.probes:
             probe.start(self._task)
+            probe.start_timestamp = perf_counter_ns()
+            self.samples[probe] = list()
 
-        threads = [Thread(target=self._poll_probe, args=(p,), daemon=True) for p in self._probes]
+        threads = [Thread(target=self._poll_probe, args=(p,), daemon=True) for p in self.probes]
 
         for thread in threads:
             thread.start()
@@ -142,13 +165,29 @@ class EnergyProfiler:
         return threads
 
     def _stop_probes(self) -> None:
-        for probe in self._probes:
-            self.samples[probe] = probe.stop()
+        for probe in self.probes:
+            power_samples = probe.stop()
+            probe.stop_timestamp = perf_counter_ns()
+
+            samples = self.samples[probe]
+
+            if len(power_samples) != len(samples):
+                raise ValueError('Sample count does not match poll count')
+
+            for i, sample in enumerate(power_samples):
+                samples[i].power = sample
 
     def _poll_probe(self, probe: EnergyProbe) -> None:
-        while self._task.exit_code is None:
+        start_ns = probe.start_timestamp
+        samples = self.samples[probe]
+
+        while not self._task.completed:
             sleep(probe.interval_seconds)
             probe.poll()
+
+            stop_ns = perf_counter_ns()
+            samples.append(EnergySample(interval=(stop_ns - start_ns) / 1E6))
+            start_ns = stop_ns
 
 
 class ZeroProbe(EnergyProbe):
@@ -205,6 +244,13 @@ class PowermetricsProbe(EnergyProbe):
         if not self._energy_task_event.wait(timeout=self.interval_seconds * 2):
             self._energy_task.kill()
             self._energy_task.wait()
+
+        # Normalize last sample if possible.
+        if self._samples and isinstance(self._task, Benchmark):
+            interval_count = int(self._task.milliseconds) // self.interval
+            if interval_count == len(self._samples) - 1:
+                last_interval = int(self._task.milliseconds) % self.interval
+                self._samples[-1] *= last_interval / self.interval
 
         return self._samples
 
@@ -345,7 +391,7 @@ class PowertopProbe(EnergyProbe):
 
         sample = 0.0
         header_found = False
-        header = "Overview of Software Power Consumers"
+        header = 'Overview of Software Power Consumers'
 
         with open(path, 'r') as report_file:
             for line in report_file:
