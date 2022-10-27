@@ -178,16 +178,22 @@ class EnergyProfiler:
                 samples[i].power = sample
 
     def _poll_probe(self, probe: EnergyProbe) -> None:
-        start_ns = probe.start_timestamp
+        interval_ns = probe.interval * 1000000
         samples = self.samples[probe]
 
-        while not self._task.completed:
-            sleep(probe.interval_seconds)
-            probe.poll()
+        start_ns = probe.start_timestamp
+        cur_ns = perf_counter_ns()
 
-            stop_ns = perf_counter_ns()
-            samples.append(EnergySample(interval=(stop_ns - start_ns) / 1E6))
-            start_ns = stop_ns
+        while not self._task.completed:
+            sleep_ns = interval_ns - (cur_ns - start_ns)
+
+            if sleep_ns > 0:
+                sleep(sleep_ns / 1E9)
+
+            probe.poll()
+            cur_ns = perf_counter_ns()
+            samples.append(EnergySample(interval=(cur_ns - start_ns) / 1E6))
+            start_ns = cur_ns
 
 
 class ZeroProbe(EnergyProbe):
