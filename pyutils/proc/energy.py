@@ -38,6 +38,9 @@ class EnergySample:
         self.power = power
         self.interval = interval
 
+    def __repr__(self) -> str:
+        return f'(Power: {self.power:.2f}, Interval: {self.interval:.2f})'
+
 
 class EnergyProbe(ABC):
     """
@@ -126,12 +129,16 @@ class EnergyProfiler:
     def __init__(self, task: Task | Benchmark, probe: EnergyProbe | Sequence[EnergyProbe]) -> None:
         exc.raise_if_falsy(task=task, probe=probe)
         self.probes = (probe,) if isinstance(probe, EnergyProbe) else probe
-        self.samples: Dict[EnergyProbe, List[EnergySample]] = {}
+        self._samples: Dict[EnergyProbe, List[EnergySample]] = {}
         self._task = task
+
+    def samples(self, probe: EnergyProbe) -> List[EnergySample]:
+        """Returns the samples gathered from the specified probe."""
+        return self._samples.get(probe, [])
 
     def score(self, probe: EnergyProbe) -> float:
         """Returns an energy impact score according to the specified probe."""
-        return sum(s.energy for s in self.samples[probe]) / 1E3
+        return sum(s.energy for s in self._samples[probe]) / 1E3
 
     def run(self, timeout: float | None = None) -> EnergyProfiler:
         """Runs the profiler."""
@@ -155,7 +162,7 @@ class EnergyProfiler:
         for probe in self.probes:
             probe.start(self._task)
             probe.start_timestamp = perf_counter_ns()
-            self.samples[probe] = list()
+            self._samples[probe] = list()
 
         threads = [Thread(target=self._poll_probe, args=(p,), daemon=True) for p in self.probes]
 
@@ -169,7 +176,7 @@ class EnergyProfiler:
             power_samples = probe.stop()
             probe.stop_timestamp = perf_counter_ns()
 
-            samples = self.samples[probe]
+            samples = self._samples[probe]
 
             if len(power_samples) != len(samples):
                 raise ValueError('Sample count does not match poll count')
@@ -179,7 +186,7 @@ class EnergyProfiler:
 
     def _poll_probe(self, probe: EnergyProbe) -> None:
         interval_ns = probe.interval * 1000000
-        samples = self.samples[probe]
+        samples = self._samples[probe]
 
         start_ns = probe.start_timestamp
         cur_ns = perf_counter_ns()
