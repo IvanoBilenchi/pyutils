@@ -112,11 +112,12 @@ class EnergyProbe(ABC):
         pass
 
     @abstractmethod
-    def stop(self) -> Sequence[float]:
+    def stop(self) -> Sequence[float] | float:
         """
         Called by the energy profiler at the end of the task.
-        The probe should stop acquiring samples, and it must return a list
-        of all the samples it acquired since :meth:`start` was called.
+        The probe should stop acquiring samples, and it must return either:
+        - a list of all the samples it acquired since :meth:`start` was called.
+        - a single value representing the sample average since :meth:`start` was called.
 
         :return: Sequence of acquired samples.
         """
@@ -173,16 +174,19 @@ class EnergyProfiler:
 
     def _stop_probes(self) -> None:
         for probe in self.probes:
-            power_samples = probe.stop()
             probe.stop_timestamp = perf_counter_ns()
-
+            power = probe.stop()
             samples = self._samples[probe]
 
-            if len(power_samples) != len(samples):
-                raise ValueError('Sample count does not match poll count')
+            if isinstance(power, float):
+                for sample in samples:
+                    sample.power = power
+            else:
+                if len(power) != len(samples):
+                    raise ValueError('Sample count does not match poll count')
 
-            for i, sample in enumerate(power_samples):
-                samples[i].power = sample
+                for i, sample in enumerate(power):
+                    samples[i].power = sample
 
     def _poll_probe(self, probe: EnergyProbe) -> None:
         interval_ns = probe.interval * 1000000
@@ -197,8 +201,8 @@ class EnergyProfiler:
             if sleep_ns > 0:
                 sleep(sleep_ns / 1E9)
 
-            probe.poll()
             cur_ns = perf_counter_ns()
+            probe.poll()
             samples.append(EnergySample(interval=(cur_ns - start_ns) / 1E6))
             start_ns = cur_ns
 
@@ -359,8 +363,9 @@ class PowertopProbe(EnergyProbe):
         self._start_energy_task()
         self._wait_for_new_reports()
 
-    def stop(self) -> Sequence[float]:
-        return list(s for s in (self._read_report(r) for r in self._reports()) if s != 0)
+    def stop(self) -> float:
+        samples = list(s for s in (self._read_report(r) for r in self._reports()) if s != 0)
+        return sum(samples) / len(samples)
 
     def poll(self) -> None:
         for tid in get_pid_tree(self._task.pid, include_tids=True):
