@@ -275,7 +275,7 @@ class PowermetricsProbe(EnergyProbe):
 
     def _mean(self) -> float:
         n_samples = len(self._samples)
-        return sum(self._samples) / n_samples if n_samples > 0 else 0.0
+        return sum(self._samples) / n_samples if n_samples else 0.0
 
     def _parse_profiler(self) -> None:
         self._energy_task_event.clear()
@@ -352,7 +352,7 @@ class PowertopProbe(EnergyProbe):
         self._task: Task | None = None
         self._energy_task: Task | None = None
         self._pids: Set[int] | None = None
-        self._report_directory: str = tempfile.mkdtemp(prefix='pyutils_powertop_')
+        self._report_dir: str = tempfile.mkdtemp(prefix='pyutils_powertop_')
 
     def start(self, task: Task) -> None:
         exc.raise_if_not_root()
@@ -364,12 +364,20 @@ class PowertopProbe(EnergyProbe):
         self._wait_for_new_reports()
 
     def stop(self) -> float:
-        samples = list(s for s in (self._read_report(r) for r in self._reports()) if s != 0)
-        return sum(samples) / len(samples)
+        # Freeze reports before further processing
+        samples = list(self._reports())
+        samples.sort(key=lambda x: os.path.getmtime(x))
+        samples = [self._read_report(r) for r in samples]
+
+        # The last report may not contain the profiled process,
+        # in which case we discard it
+        if samples and not samples[-1]:
+            samples.pop()
+
+        return sum(samples) / len(samples) if samples else 0.0
 
     def poll(self) -> None:
-        for tid in get_pid_tree(self._task.pid, include_tids=True):
-            self._pids.add(tid)
+        self._pids.update(get_pid_tree(self._task.pid, include_tids=True))
 
     # Private
 
@@ -378,22 +386,20 @@ class PowertopProbe(EnergyProbe):
             return
 
         atexit.register(self._force_close)
-        file.create_dir(self._report_directory)
+        file.create_dir(self._report_dir)
 
         args = [
             '-t', str(self.interval_seconds),
             '-i', str(2 ** 63 - 1),
-            f'-C{os.path.join(self._report_directory, self._REPORT_FILENAME)}'
+            f'-C{os.path.join(self._report_dir, self._REPORT_FILENAME)}'
         ]
 
         self._energy_task = Task('powertop', args, OutputAction.DISCARD).run(wait=False)
 
     def _wait_for_new_reports(self) -> None:
-        file.remove_dir_contents(self._report_directory)
-
+        file.remove_dir_contents(self._report_dir)
         while not next(self._reports(), None):
             sleep(0.1)
-            pass
 
     def _wait_for_report(self, path: str) -> None:
         wait_intervals = 10
@@ -431,9 +437,9 @@ class PowertopProbe(EnergyProbe):
             return 0.0
 
     def _reports(self) -> Iterator:
-        return file.dir_contents(self._report_directory, include_dirs=False)
+        return file.dir_contents(self._report_dir, include_dirs=False)
 
     def _force_close(self) -> None:
         if self._energy_task:
             self._energy_task.send_signal(signal.SIGKILL)
-        file.remove_dir(self._report_directory, recursive=True)
+        file.remove_dir(self._report_dir, recursive=True)
