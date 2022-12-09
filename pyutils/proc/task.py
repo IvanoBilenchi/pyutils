@@ -123,21 +123,20 @@ class Task:
 
     def wait(self, timeout: float | None = None) -> Task:
         """Wait for the task to exit."""
-        stdout, stderr = None, None
+        out, err = None, None
         try:
             self.__patch_wait(self._process)
-            stdout, stderr = self._process.communicate(timeout=timeout)
-        except sp.TimeoutExpired:
+            out, err = self._process.communicate(timeout=timeout)
+        except sp.TimeoutExpired as e:
             self.send_signal(sig=signal.SIGKILL, children=True)
-            stdout, stderr = self._process.communicate()
-            raise sp.TimeoutExpired(self._process.args, timeout, output=stdout, stderr=stderr)
+            out, err = self._process.communicate(timeout=5.0)
+            raise sp.TimeoutExpired(self._process.args, timeout, output=out, stderr=err) from e
         except Exception:
             self.send_signal(sig=signal.SIGKILL, children=True)
             raise
         finally:
             self.rusage = getattr(self._process, 'rusage', None)
-            self._completed = sp.CompletedProcess(self._popen_args, self._process.poll(),
-                                                  stdout, stderr)
+            self._completed = sp.CompletedProcess(self._popen_args, self._process.poll(), out, err)
         return self
 
     def run_async(self, timeout: float | None = None,
