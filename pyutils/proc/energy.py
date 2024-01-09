@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import os
+import random
 import re
 import signal
 import subprocess as sp
@@ -219,6 +220,25 @@ class ZeroProbe(EnergyProbe):
 
     def poll(self) -> None:
         self._samples.append(0.0)
+
+    def stop(self) -> Sequence[float]:
+        return self._samples
+
+
+class RandomProbe(EnergyProbe):
+    """EnergyProbe implementation that returns a random value upon polling."""
+
+    def __init__(self):
+        super().__init__()
+        self._samples: List[float] | None = None
+        self.min = 0.0
+        self.max = 1.0
+
+    def start(self, task: Task) -> None:
+        self._samples = []
+
+    def poll(self) -> None:
+        self._samples.append(random.uniform(self.min, self.max))
 
     def stop(self) -> Sequence[float]:
         return self._samples
