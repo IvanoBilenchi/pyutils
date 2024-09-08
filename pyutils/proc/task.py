@@ -17,6 +17,7 @@ from .. import exc
 
 class OutputAction(Enum):
     """Output actions."""
+
     PRINT = auto()
     DISCARD = auto()
     STORE = auto()
@@ -50,32 +51,52 @@ class Task:
         return self._completed.returncode if self._completed else None
 
     @classmethod
-    def spawn(cls, executable: str,
-              args: List[str] | None = None,
-              output_action: OutputAction = OutputAction.STORE,
-              input_path: str | None = None) -> Task:
+    def spawn(
+        cls,
+        executable: str,
+        args: List[str] | None = None,
+        output_action: OutputAction = OutputAction.STORE,
+        input_path: str | None = None,
+    ) -> Task:
         """Convenience factory method: builds, runs and returns a task."""
-        task = cls(executable, args=args, output_action=output_action, input_path=input_path)
+        task = cls(
+            executable, args=args, output_action=output_action, input_path=input_path
+        )
         task.run()
         return task
 
     @classmethod
     def copying(cls, task: Task) -> Task:
-        return cls(task.path, args=task.args, output_action=task.output_action,
-                   input_path=task.input_path)
+        return cls(
+            task.path,
+            args=task.args,
+            output_action=task.output_action,
+            input_path=task.input_path,
+        )
 
     @classmethod
-    def jar(cls, jar: str, jar_args: List[str] | None = None,
-            jvm_opts: List[str] | None = None, output_action: OutputAction = OutputAction.STORE,
-            input_path: str | None = None) -> Task:
-        return cls('java', java_args(jar, jar_args=jar_args, jvm_opts=jvm_opts),
-                   output_action=output_action, input_path=input_path)
+    def jar(
+        cls,
+        jar: str,
+        jar_args: List[str] | None = None,
+        jvm_opts: List[str] | None = None,
+        output_action: OutputAction = OutputAction.STORE,
+        input_path: str | None = None,
+    ) -> Task:
+        return cls(
+            "java",
+            java_args(jar, jar_args=jar_args, jvm_opts=jvm_opts),
+            output_action=output_action,
+            input_path=input_path,
+        )
 
-    def __init__(self,
-                 executable: str,
-                 args: List[str] | None = None,
-                 output_action: OutputAction = OutputAction.STORE,
-                 input_path: str | None = None) -> None:
+    def __init__(
+        self,
+        executable: str,
+        args: List[str] | None = None,
+        output_action: OutputAction = OutputAction.STORE,
+        input_path: str | None = None,
+    ) -> None:
         exc.raise_if_falsy(executable=executable, output_action=output_action)
 
         if not os.path.isabs(executable):
@@ -105,18 +126,19 @@ class Task:
             if self.input_path:
                 stdin = open(self.input_path)
 
-            self._process = sp.Popen(self._popen_args, stdout=handle, stderr=handle,
-                                     stdin=stdin, text=True)
+            self._process = sp.Popen(
+                self._popen_args, stdout=handle, stderr=handle, stdin=stdin, text=True
+            )
 
             if wait:
                 self.wait(timeout=timeout)
 
-        except Exception as e:
+        except BaseException as e:
             try:
                 if stdin:
                     stdin.close()
-                exc.re_raise_new_message(e, f'Failed to call process: {self.path}')
-            except Exception:
+                exc.re_raise_new_message(e, f"Failed to call process: {self.path}")
+            except BaseException:
                 raise e
 
         return self
@@ -130,17 +152,24 @@ class Task:
         except sp.TimeoutExpired as e:
             self.send_signal(sig=signal.SIGKILL, children=True)
             out, err = self._process.communicate(timeout=5.0)
-            raise sp.TimeoutExpired(self._process.args, timeout, output=out, stderr=err) from e
-        except Exception:
+            raise sp.TimeoutExpired(
+                self._process.args, timeout, output=out, stderr=err
+            ) from e
+        except BaseException:
             self.send_signal(sig=signal.SIGKILL, children=True)
             raise
         finally:
-            self.rusage = getattr(self._process, 'rusage', None)
-            self._completed = sp.CompletedProcess(self._popen_args, self._process.poll(), out, err)
+            self.rusage = getattr(self._process, "rusage", None)
+            self._completed = sp.CompletedProcess(
+                self._popen_args, self._process.poll(), out, err
+            )
         return self
 
-    def run_async(self, timeout: float | None = None,
-                  exit_handler: Callable[[Task, Exception], None] | None = None) -> Task:
+    def run_async(
+        self,
+        timeout: float | None = None,
+        exit_handler: Callable[[Task, Exception], None] | None = None,
+    ) -> Task:
         """Run the task asynchronously."""
         bg_proc = Thread(target=self._run_async_thread, args=[timeout, exit_handler])
         bg_proc.daemon = True
@@ -156,7 +185,9 @@ class Task:
                 self._process.send_signal(sig)
         return self
 
-    def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> Task:
+    def raise_if_failed(
+        self, ensure_output: bool = False, message: str | None = None
+    ) -> Task:
         """Raise an IOError if the task returned with a non-zero exit code."""
         auto_msg = None
         should_raise = False
@@ -179,7 +210,7 @@ class Task:
                 if msg:
                     err_lines.append(msg)
 
-            raise IOError('\n'.join(err_lines))
+            raise IOError("\n".join(err_lines))
 
         return self
 
@@ -194,13 +225,16 @@ class Task:
 
         return args
 
-    def _run_async_thread(self, timeout: float | None,
-                          exit_handler: Callable[[Task, Exception], None] | None) -> None:
+    def _run_async_thread(
+        self,
+        timeout: float | None,
+        exit_handler: Callable[[Task, Exception], None] | None,
+    ) -> None:
         err = None
 
         try:
             self.run(timeout=timeout)
-        except Exception as e:
+        except BaseException as e:
             err = e
         finally:
             if exit_handler:
@@ -216,13 +250,15 @@ class Task:
                 pid = s.pid
                 sts = 0
                 rusage = None
-            setattr(s, 'rusage', rusage)
+            setattr(s, "rusage", rusage)
             return pid, sts
+
         process._try_wait = types.MethodType(wait_impl, process)
 
 
-def java_args(jar: str, jar_args: List[str] | None = None,
-              jvm_opts: List[str] | None = None) -> List[str]:
+def java_args(
+    jar: str, jar_args: List[str] | None = None, jvm_opts: List[str] | None = None
+) -> List[str]:
     """
     Returns the argument list to pass to the JVM in order to launch the given Jar.
 
@@ -236,7 +272,7 @@ def java_args(jar: str, jar_args: List[str] | None = None,
     if jvm_opts:
         args.extend(jvm_opts)
 
-    args.extend(('-jar', jar))
+    args.extend(("-jar", jar))
 
     if jar_args:
         args.extend(jar_args)
