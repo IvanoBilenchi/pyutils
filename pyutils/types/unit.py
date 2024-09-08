@@ -37,7 +37,9 @@ class Measurement(Generic[Unit]):
 
     def format(self, decimal_digits: int = 1) -> str:
         """Formats the measurement."""
-        return f'{self.value:.{decimal_digits}f} {self.unit}'
+        if self.unit.value:
+            return f'{self.value:.{decimal_digits}f} {self.unit}'
+        return f'{self.value:.{decimal_digits}f}'
 
     def to(self: Self, unit: Unit) -> Self:
         """Converts a measurement to another unit."""
@@ -46,6 +48,31 @@ class Measurement(Generic[Unit]):
     def to_value(self, unit: Unit) -> float:
         """Converts a measurement to another unit and returns its value."""
         return self.value * self.unit.multiplier / unit.multiplier
+
+
+class ScalarUnit(StrEnum):
+    """Scalar unit."""
+
+    BILLIONTHS = 'billionths'
+    MILLIONTHS = 'millionths'
+    THOUSANDTHS = 'thousandths'
+    BASE = ''
+    THOUSANDS = 'thousands'
+    MILLIONS = 'millions'
+    BILLIONS = 'billions'
+
+    @property
+    def multiplier(self) -> float:
+        mult = (1.0, 1.0E3, 1.0E6, 1.0E9, 1.0E12, 1.0E15, 1.0E18)
+        return mult[self.all().index(self)]
+
+    def __call__(self, value: Value) -> ScalarMeasurement:
+        return ScalarMeasurement(value, self)
+
+
+class ScalarMeasurement(Measurement[ScalarUnit]):
+    """Scalar measurement."""
+    pass
 
 
 class TimeUnit(StrEnum):
