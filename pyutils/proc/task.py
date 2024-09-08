@@ -6,7 +6,7 @@ import subprocess as sp
 import types
 from enum import Enum, auto
 from threading import Thread
-from typing import Callable, List
+from typing import Callable, List, Set
 
 from .util import find_executable, kill
 from .. import exc
@@ -25,6 +25,8 @@ class OutputAction(Enum):
 
 class Task:
     """Spawn processes and easily capture their output."""
+
+    _ALL: Set[Task] = set()
 
     @property
     def name(self) -> str:
@@ -51,6 +53,28 @@ class Task:
         return self._completed.returncode if self._completed else None
 
     @classmethod
+    def get_running(cls) -> List[Task]:
+        cls._cleanup_tasks()
+        return list(cls._ALL)
+
+    @classmethod
+    def terminate_all(cls, kill: bool = False) -> None:
+        for task in cls.get_running():
+            try:
+                task.send_signal(sig=signal.SIGKILL if kill else signal.SIGTERM, children=True)
+            except BaseException:
+                pass
+
+    @classmethod
+    def _add_task(cls, task: Task) -> None:
+        cls._cleanup_tasks()
+        cls._ALL.add(task)
+
+    @classmethod
+    def _cleanup_tasks(cls) -> None:
+        cls._ALL.difference_update({t for t in cls._ALL if t.completed})
+
+    @classmethod
     def spawn(
         cls,
         executable: str,
@@ -59,9 +83,7 @@ class Task:
         input_path: str | None = None,
     ) -> Task:
         """Convenience factory method: builds, runs and returns a task."""
-        task = cls(
-            executable, args=args, output_action=output_action, input_path=input_path
-        )
+        task = cls(executable, args=args, output_action=output_action, input_path=input_path)
         task.run()
         return task
 
@@ -110,6 +132,7 @@ class Task:
 
         self._completed: sp.CompletedProcess | None = None
         self._process: sp.Popen | None = None
+        self._add_task(self)
 
     def run(self, wait: bool = True, timeout: float | None = None) -> Task:
         """Run the task."""
@@ -152,17 +175,13 @@ class Task:
         except sp.TimeoutExpired as e:
             self.send_signal(sig=signal.SIGKILL, children=True)
             out, err = self._process.communicate(timeout=5.0)
-            raise sp.TimeoutExpired(
-                self._process.args, timeout, output=out, stderr=err
-            ) from e
+            raise sp.TimeoutExpired(self._process.args, timeout, output=out, stderr=err) from e
         except BaseException:
             self.send_signal(sig=signal.SIGKILL, children=True)
             raise
         finally:
             self.rusage = getattr(self._process, "rusage", None)
-            self._completed = sp.CompletedProcess(
-                self._popen_args, self._process.poll(), out, err
-            )
+            self._completed = sp.CompletedProcess(self._popen_args, self._process.poll(), out, err)
         return self
 
     def run_async(
@@ -185,9 +204,7 @@ class Task:
                 self._process.send_signal(sig)
         return self
 
-    def raise_if_failed(
-        self, ensure_output: bool = False, message: str | None = None
-    ) -> Task:
+    def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> Task:
         """Raise an IOError if the task returned with a non-zero exit code."""
         auto_msg = None
         should_raise = False
