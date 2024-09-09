@@ -62,7 +62,7 @@ class Task:
         for task in cls.get_running():
             try:
                 task.send_signal(sig=signal.SIGKILL if kill else signal.SIGTERM, children=True)
-            except BaseException:
+            except Exception:
                 pass
 
     @classmethod
@@ -156,12 +156,12 @@ class Task:
             if wait:
                 self.wait(timeout=timeout)
 
-        except BaseException as e:
+        except Exception as e:
             try:
                 if stdin:
                     stdin.close()
                 exc.re_raise_new_message(e, f"Failed to call process: {self.path}")
-            except BaseException:
+            except Exception:
                 raise e
 
         return self
@@ -176,7 +176,7 @@ class Task:
             self.send_signal(sig=signal.SIGKILL, children=True)
             out, err = self._process.communicate(timeout=5.0)
             raise sp.TimeoutExpired(self._process.args, timeout, output=out, stderr=err) from e
-        except BaseException:
+        except Exception:
             self.send_signal(sig=signal.SIGKILL, children=True)
             raise
         finally:
@@ -197,11 +197,8 @@ class Task:
 
     def send_signal(self, sig: int = signal.SIGKILL, children: bool = False) -> Task:
         """Send a signal to the task."""
-        if self._process and self._process.pid is not None:
-            if children:
-                kill(self._process.pid, sig=sig, children=children)
-            else:
-                self._process.send_signal(sig)
+        if self._process and self._process.pid is not None and not self.completed:
+            kill(self._process.pid, sig=sig, children=children)
         return self
 
     def raise_if_failed(self, ensure_output: bool = False, message: str | None = None) -> Task:
@@ -251,7 +248,7 @@ class Task:
 
         try:
             self.run(timeout=timeout)
-        except BaseException as e:
+        except Exception as e:
             err = e
         finally:
             if exit_handler:
